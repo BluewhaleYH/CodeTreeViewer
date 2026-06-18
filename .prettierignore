@@ -1,0 +1,9 @@
+node_modules
+out
+dist
+screenshots
+reviews
+package-lock.json
+
+# 마크다운 문서(스펙/가이드)는 수기 포맷을 유지한다.
+**/*.md
