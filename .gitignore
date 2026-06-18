@@ -1,0 +1,14 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+out/
+dist/
+
+# 로컬 전용 (CLAUDE.md §6)
+screenshots/
+reviews/
+
+# 기타
+*.log
+.DS_Store

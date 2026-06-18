@@ -1,0 +1,17 @@
+# 패키징 설정 (상세/검증은 M9 — docs/DEPLOY.md). M0에서는 스크립트가 동작하도록 기본 골격만 둔다.
+appId: com.codetreeviewer.app
+productName: CodeTreeViewer
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+win:
+  target:
+    - nsis
+    - zip
