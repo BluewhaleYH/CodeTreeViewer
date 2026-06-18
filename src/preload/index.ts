@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import type { AnalysisProgress, AnalysisSummary } from '../shared/analysis'
 
 export interface ProjectSelection {
   path: string
@@ -6,6 +7,8 @@ export interface ProjectSelection {
 }
 
 export type MenuAction = 'open-project' | 'new-tab' | 'close-tab'
+
+let analysisCounter = 0
 
 const MENU_CHANNELS: Record<string, MenuAction> = {
   'menu:open-project': 'open-project',
@@ -36,6 +39,25 @@ const api = {
     return () => {
       registered.forEach(({ channel, listener }) => ipcRenderer.removeListener(channel, listener))
     }
+  },
+
+  /** 프로젝트 분석을 실행한다. 진행률은 onProgress로 통지된다. (02 §3, §8) */
+  runAnalysis: (
+    projectPath: string,
+    onProgress: (progress: AnalysisProgress) => void
+  ): Promise<AnalysisSummary> => {
+    analysisCounter += 1
+    const id = `analysis-${analysisCounter}`
+    const listener = (
+      _event: IpcRendererEvent,
+      data: { id: string; progress: AnalysisProgress }
+    ): void => {
+      if (data.id === id) onProgress(data.progress)
+    }
+    ipcRenderer.on('analysis:progress', listener)
+    return ipcRenderer
+      .invoke('analysis:run', { id, projectPath })
+      .finally(() => ipcRenderer.removeListener('analysis:progress', listener))
   }
 }
 

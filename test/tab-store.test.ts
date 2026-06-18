@@ -141,3 +141,60 @@ describe('TabStore — 탭별 독립 상태 컨테이너 (M2_4)', () => {
     expect(count).toBe(1)
   })
 })
+
+describe('TabStore — 분석 상태 (M3_3)', () => {
+  const summary = {
+    root: '/p',
+    fileCount: 3,
+    parsedCount: 3,
+    failureCount: 0,
+    byLanguage: { java: 2, kotlin: 1 },
+    skippedDirCount: 0,
+    failures: []
+  }
+
+  it('새 탭의 분석 상태는 idle이다', () => {
+    const store = new TabStore()
+    const tab = store.addEmptyTab()
+    expect(tab.analysis.status).toBe('idle')
+  })
+
+  it('start→progress→finish 흐름을 반영한다', () => {
+    const store = new TabStore()
+    const tab = store.openProject('/p', 'p')
+    store.startAnalysis(tab.id)
+    expect(tab.analysis.status).toBe('running')
+    store.setAnalysisProgress(tab.id, { phase: 'parsing', processed: 1, total: 3 })
+    expect(tab.analysis.progress?.processed).toBe(1)
+    store.finishAnalysis(tab.id, summary)
+    expect(tab.analysis.status).toBe('done')
+    expect(tab.analysis.summary?.fileCount).toBe(3)
+    expect(tab.analysis.progress).toBeNull()
+  })
+
+  it('running이 아닐 때 progress는 무시한다', () => {
+    const store = new TabStore()
+    const tab = store.openProject('/p', 'p')
+    store.setAnalysisProgress(tab.id, { phase: 'parsing', processed: 1, total: 3 })
+    expect(tab.analysis.progress).toBeNull()
+  })
+
+  it('실패를 기록한다', () => {
+    const store = new TabStore()
+    const tab = store.openProject('/p', 'p')
+    store.startAnalysis(tab.id)
+    store.failAnalysis(tab.id, '경로 없음')
+    expect(tab.analysis.status).toBe('error')
+    expect(tab.analysis.error).toBe('경로 없음')
+  })
+
+  it('분석 상태는 탭별로 독립적이다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/a', 'a')
+    const b = store.openProject('/b', 'b')
+    store.finishAnalysis(a.id, summary)
+    store.startAnalysis(b.id)
+    expect(a.analysis.status).toBe('done')
+    expect(b.analysis.status).toBe('running')
+  })
+})

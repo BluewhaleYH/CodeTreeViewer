@@ -1,3 +1,5 @@
+import type { AnalysisProgress, AnalysisSummary } from '../../shared/analysis'
+
 export interface ProjectSelection {
   path: string
   name: string
@@ -12,6 +14,10 @@ declare global {
       captureMode: boolean
       openProjectDialog: () => Promise<ProjectSelection | null>
       onMenuAction: (handler: (action: MenuAction) => void) => () => void
+      runAnalysis: (
+        projectPath: string,
+        onProgress: (progress: AnalysisProgress) => void
+      ) => Promise<AnalysisSummary>
     }
   }
 }

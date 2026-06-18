@@ -127,6 +127,44 @@ body {
   color: var(--fg-muted);
 }
 
+/* 분석 상태 */
+.analysis {
+  margin-top: 1rem;
+}
+
+.analysis__stat {
+  margin: 0;
+  font-size: 14px;
+}
+
+.analysis__warn {
+  margin: 0.25rem 0 0;
+  font-size: 13px;
+  color: #e2b341;
+}
+
+.analysis__error {
+  margin: 0;
+  font-size: 14px;
+  color: #e06c75;
+}
+
+.progress {
+  margin-top: 0.5rem;
+  width: 320px;
+  max-width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-tab);
+  overflow: hidden;
+}
+
+.progress__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s ease;
+}
+
 /* 빈 상태 welcome 화면 */
 .welcome {
   height: 100%;
