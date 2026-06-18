@@ -70,6 +70,8 @@ if (root) {
         failureCount: 2,
         byLanguage: { java: 90, kotlin: 36 },
         skippedDirCount: 3,
+        nodeCount: 128,
+        edgeCount: 214,
         failures: [
           { relativePath: 'app/src/main/java/Broken.java', reason: 'EACCES: permission denied' },
           { relativePath: 'lib/Garbled.kt', reason: 'EACCES: permission denied' }

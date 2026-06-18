@@ -32,7 +32,7 @@ describe('runAnalysis — 스캔→파싱 오케스트레이션 (M3_3)', () => {
     await write('app/src/main/kotlin/Bar.kt', 'fun bar() {}')
     await write('build/Ignored.java', 'class Ignored {}')
 
-    const summary = await runAnalysis(root, parser)
+    const { summary } = await runAnalysis(root, parser)
 
     expect(summary.fileCount).toBe(2)
     expect(summary.parsedCount).toBe(2)
@@ -54,7 +54,7 @@ describe('runAnalysis — 스캔→파싱 오케스트레이션 (M3_3)', () => {
 
   it('빈 프로젝트도 안전하게 처리한다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
-    const summary = await runAnalysis(root, parser)
+    const { summary } = await runAnalysis(root, parser)
     expect(summary.fileCount).toBe(0)
     expect(summary.parsedCount).toBe(0)
   })

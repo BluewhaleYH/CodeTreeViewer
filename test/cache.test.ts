@@ -60,7 +60,7 @@ describe('AnalysisCache get/set (M3_4)', () => {
 
     const entry = {
       root: '/p/x',
-      version: 1,
+      version: 2,
       fingerprint: 'abc',
       summary: {
         root: '/p/x',
@@ -69,8 +69,11 @@ describe('AnalysisCache get/set (M3_4)', () => {
         failureCount: 0,
         byLanguage: { java: 1, kotlin: 0 },
         skippedDirCount: 0,
+        nodeCount: 1,
+        edgeCount: 0,
         failures: []
-      }
+      },
+      graph: { nodes: [], edges: [] }
     }
     await cache.set('/p/x', entry)
     expect(await cache.get('/p/x')).toEqual(entry)

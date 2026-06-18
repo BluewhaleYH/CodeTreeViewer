@@ -65,6 +65,12 @@ function renderAnalysis(tab: TabState): HTMLElement {
     stat.className = 'analysis__stat'
     stat.textContent = `파일 ${summary.fileCount}개 · Java ${summary.byLanguage.java} · Kotlin ${summary.byLanguage.kotlin}`
     el.appendChild(stat)
+
+    const graphStat = document.createElement('p')
+    graphStat.className = 'analysis__stat analysis__substat'
+    graphStat.textContent = `의존성: 노드 ${summary.nodeCount} · 엣지 ${summary.edgeCount}`
+    el.appendChild(graphStat)
+
     if (summary.failureCount > 0) {
       const warn = document.createElement('p')
       warn.className = 'analysis__warn'

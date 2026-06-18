@@ -2,8 +2,11 @@ import { readFile } from 'node:fs/promises'
 import { setImmediate } from 'node:timers/promises'
 import { scanProject, type ScanOptions, type ScanResult } from './scanner'
 import type { SourceParser } from './parser'
+import { extractFileInfo, type FileInfo } from './extract'
+import { buildFileGraph } from './dependency-graph'
 import { AnalysisCache, ANALYZER_VERSION, fileFingerprint } from './cache'
 import type { AnalysisProgress, AnalysisSummary, SourceLanguage } from '../../shared/analysis'
+import type { CodeGraph } from '../../shared/graph'
 
 export interface RunAnalysisOptions {
   onProgress?: (progress: AnalysisProgress) => void
@@ -12,26 +15,30 @@ export interface RunAnalysisOptions {
   yieldEvery?: number
 }
 
-export interface AnalyzeResult {
+export interface AnalysisRunResult {
   summary: AnalysisSummary
+  graph: CodeGraph
+}
+
+export interface AnalyzeResult extends AnalysisRunResult {
   fromCache: boolean
 }
 
 /**
- * 스캔 결과를 파싱해 요약을 만든다(비차단 양보 + 진행률).
- * 노드/엣지 추출은 M4에서 이 단계에 추가한다(현재는 파싱 가능 여부/요약만).
+ * 스캔 결과를 파싱·추출해 의존성 그래프와 요약을 만든다(비차단 양보 + 진행률). (02 §3, §4, §8)
  */
 async function analyzeScanned(
   scanResult: ScanResult,
   parser: SourceParser,
   options: RunAnalysisOptions
-): Promise<AnalysisSummary> {
+): Promise<AnalysisRunResult> {
   const { onProgress, yieldEvery = 25 } = options
   const files = scanResult.files
   const total = files.length
 
   const byLanguage: Record<SourceLanguage, number> = { java: 0, kotlin: 0 }
   const failures: AnalysisSummary['failures'] = []
+  const infos: FileInfo[] = []
   let parsedCount = 0
 
   onProgress?.({ phase: 'parsing', processed: 0, total })
@@ -40,7 +47,13 @@ async function analyzeScanned(
     const file = files[i]
     try {
       const code = await readFile(file.absolutePath, 'utf8')
-      parser.parse(file.language, code)
+      const tree = parser.parse(file.language, code)
+      try {
+        infos.push(extractFileInfo(tree, file))
+      } catch {
+        // 추출 실패해도 파일 노드는 유지(import만 비움).
+        infos.push({ file, packageName: null, topLevelNames: [], imports: [] })
+      }
       parsedCount += 1
       byLanguage[file.language] += 1
     } catch (error) {
@@ -56,29 +69,33 @@ async function analyzeScanned(
     }
   }
 
+  const graph = buildFileGraph(files, infos)
+
   onProgress?.({ phase: 'parsing', processed: total, total })
   onProgress?.({ phase: 'done', processed: total, total })
 
-  return {
+  const summary: AnalysisSummary = {
     root: scanResult.root,
     fileCount: total,
     parsedCount,
     failureCount: failures.length,
     byLanguage,
     skippedDirCount: scanResult.skippedDirs.length,
+    nodeCount: graph.nodes.length,
+    edgeCount: graph.edges.length,
     failures
   }
+  return { summary, graph }
 }
 
 /**
- * 프로젝트를 분석한다(캐시 미사용): 스캔(M3_1) → 파싱(M3_2) → 요약. (02 §3, §8)
- * 진행률을 보고하고 yieldEvery마다 이벤트 루프에 양보한다(비차단). (추가-6)
+ * 프로젝트를 분석한다(캐시 미사용): 스캔(M3_1) → 파싱(M3_2) → 추출/그래프(M4) → 요약.
  */
 export async function runAnalysis(
   projectPath: string,
   parser: SourceParser,
   options: RunAnalysisOptions = {}
-): Promise<AnalysisSummary> {
+): Promise<AnalysisRunResult> {
   options.onProgress?.({ phase: 'scanning', processed: 0, total: 0 })
   const scanResult = await scanProject(projectPath, options.scan)
   return analyzeScanned(scanResult, parser, options)
@@ -101,15 +118,16 @@ export async function analyzeProject(
   if (cached && cached.version === ANALYZER_VERSION && cached.fingerprint === fingerprint) {
     const total = scanResult.files.length
     options.onProgress?.({ phase: 'done', processed: total, total })
-    return { summary: cached.summary, fromCache: true }
+    return { summary: cached.summary, graph: cached.graph, fromCache: true }
   }
 
-  const summary = await analyzeScanned(scanResult, parser, options)
+  const { summary, graph } = await analyzeScanned(scanResult, parser, options)
   await cache.set(projectPath, {
     root: projectPath,
     version: ANALYZER_VERSION,
     fingerprint,
-    summary
+    summary,
+    graph
   })
-  return { summary, fromCache: false }
+  return { summary, graph, fromCache: false }
 }

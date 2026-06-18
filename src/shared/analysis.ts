@@ -23,5 +23,9 @@ export interface AnalysisSummary {
   failureCount: number
   byLanguage: Record<SourceLanguage, number>
   skippedDirCount: number
+  /** 그래프 노드 수(파일 노드 등). (02 §4) */
+  nodeCount: number
+  /** 그래프 엣지 수(파일 의존성 등). (02 §4) */
+  edgeCount: number
   failures: AnalysisFailure[]
 }
