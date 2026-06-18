@@ -1,5 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { extname, join, relative, sep } from 'node:path'
+import type { SourceLanguage } from '../../shared/analysis'
 
 /**
  * 프로젝트 폴더 재귀 스캔. (02 §3)
@@ -7,7 +8,7 @@ import { extname, join, relative, sep } from 'node:path'
  * 파싱(Tree-sitter)은 M3_2, 분석 실행/진행률은 M3_3, 캐시는 M3_4.
  */
 
-export type SourceLanguage = 'java' | 'kotlin'
+export type { SourceLanguage }
 
 export interface ScannedFile {
   /** 절대 경로 */

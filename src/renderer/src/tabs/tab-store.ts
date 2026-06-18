@@ -3,6 +3,8 @@
  * 탭 = 프로젝트 1개. 탭별로 독립적인 프로젝트·분석 결과·뷰 상태를 가진다. (01 §4)
  */
 
+import type { AnalysisProgress, AnalysisSummary } from '../../../shared/analysis'
+
 /** 시각화 뷰 모드. 토글 UI는 M5/M6에서 연결한다. (03 §5.2) */
 export type ViewMode = 'graph' | 'tree'
 
@@ -11,16 +13,31 @@ export interface TabViewState {
   // 선택/포커스 노드 등은 시각화 단계(M5/M6)에서 확장한다.
 }
 
+export type AnalysisStatus = 'idle' | 'running' | 'done' | 'error'
+
+/** 탭별 분석 상태 컨테이너. (02 §3) */
+export interface TabAnalysisState {
+  status: AnalysisStatus
+  progress: AnalysisProgress | null
+  summary: AnalysisSummary | null
+  error: string | null
+}
+
 export interface TabState {
   id: string
   projectPath: string | null
   projectName: string | null
   /** 탭별 독립 뷰 상태. (01 §4, 세션 복원은 M8) */
   view: TabViewState
-  // 분석 결과 슬롯은 분석 단계(M3/M4)에서 채운다. 현재는 미보유.
+  /** 탭별 분석 상태/결과. (02 §3) */
+  analysis: TabAnalysisState
 }
 
 const DEFAULT_VIEW_MODE: ViewMode = 'graph'
+
+function createAnalysisState(): TabAnalysisState {
+  return { status: 'idle', progress: null, summary: null, error: null }
+}
 
 let idCounter = 0
 function nextId(): string {
@@ -28,9 +45,15 @@ function nextId(): string {
   return `tab-${idCounter}`
 }
 
-/** 기본 상태로 새 탭을 만든다. 각 탭은 독립된 view 컨테이너를 갖는다. */
+/** 기본 상태로 새 탭을 만든다. 각 탭은 독립된 view/analysis 컨테이너를 갖는다. */
 function createTab(projectPath: string | null, projectName: string | null): TabState {
-  return { id: nextId(), projectPath, projectName, view: { mode: DEFAULT_VIEW_MODE } }
+  return {
+    id: nextId(),
+    projectPath,
+    projectName,
+    view: { mode: DEFAULT_VIEW_MODE },
+    analysis: createAnalysisState()
+  }
 }
 
 export class TabStore {
@@ -94,6 +117,33 @@ export class TabStore {
       tab.view = { ...tab.view, mode }
       this.emit()
     }
+  }
+
+  /** 분석 상태를 갱신한다(탭이 없으면 무시). */
+  private patchAnalysis(id: string, analysis: TabAnalysisState): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab) return
+    tab.analysis = analysis
+    this.emit()
+  }
+
+  startAnalysis(id: string): void {
+    this.patchAnalysis(id, { status: 'running', progress: null, summary: null, error: null })
+  }
+
+  setAnalysisProgress(id: string, progress: AnalysisProgress): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || tab.analysis.status !== 'running') return
+    tab.analysis = { ...tab.analysis, progress }
+    this.emit()
+  }
+
+  finishAnalysis(id: string, summary: AnalysisSummary): void {
+    this.patchAnalysis(id, { status: 'done', progress: null, summary, error: null })
+  }
+
+  failAnalysis(id: string, error: string): void {
+    this.patchAnalysis(id, { status: 'error', progress: null, summary: null, error })
   }
 
   /** 탭을 닫는다. 활성 탭을 닫으면 인접 탭(다음 → 이전)을 활성화한다. (M2_2) */

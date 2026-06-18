@@ -1,4 +1,4 @@
-import type { TabStore } from './tab-store'
+import type { TabState, TabStore } from './tab-store'
 
 export interface TabContentActions {
   openProject: () => void
@@ -6,7 +6,7 @@ export interface TabContentActions {
 
 /**
  * 활성 탭의 콘텐츠 영역을 렌더한다.
- * 프로젝트가 있으면 프로젝트 뷰, 없으면(빈 탭/탭 없음) welcome 화면을 표시한다. (01 §4, M2_3)
+ * 프로젝트가 있으면 프로젝트 뷰(분석 상태 포함), 없으면 welcome 화면. (01 §4, 02 §3)
  */
 export function renderTabContent(
   container: HTMLElement,
@@ -17,25 +17,68 @@ export function renderTabContent(
   container.innerHTML = ''
 
   if (active && active.projectPath !== null) {
-    container.appendChild(renderProjectView(active.projectName ?? '', active.projectPath))
+    container.appendChild(renderProjectView(active))
   } else {
     container.appendChild(renderWelcome(actions))
   }
 }
 
-function renderProjectView(name: string, path: string): HTMLElement {
+function renderProjectView(tab: TabState): HTMLElement {
   const box = document.createElement('div')
   box.className = 'content'
 
   const title = document.createElement('h2')
-  title.textContent = name
+  title.textContent = tab.projectName ?? ''
 
   const pathEl = document.createElement('p')
   pathEl.className = 'path'
-  pathEl.textContent = path
+  pathEl.textContent = tab.projectPath ?? ''
 
-  box.append(title, pathEl)
+  box.append(title, pathEl, renderAnalysis(tab))
   return box
+}
+
+function renderAnalysis(tab: TabState): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'analysis'
+  const { status, progress, summary, error } = tab.analysis
+
+  if (status === 'idle') {
+    el.innerHTML = '<p class="muted">분석 대기 중…</p>'
+  } else if (status === 'running') {
+    const done = progress?.processed ?? 0
+    const total = progress?.total ?? 0
+    const label = progress?.phase === 'scanning' ? '스캔 중…' : `파싱 중… ${done}/${total}`
+    const ratio = total > 0 ? Math.round((done / total) * 100) : 0
+    const text = document.createElement('p')
+    text.className = 'muted'
+    text.textContent = label
+    const bar = document.createElement('div')
+    bar.className = 'progress'
+    const fill = document.createElement('div')
+    fill.className = 'progress__fill'
+    fill.style.width = `${ratio}%`
+    bar.appendChild(fill)
+    el.append(text, bar)
+  } else if (status === 'done' && summary) {
+    const stat = document.createElement('p')
+    stat.className = 'analysis__stat'
+    stat.textContent = `파일 ${summary.fileCount}개 · Java ${summary.byLanguage.java} · Kotlin ${summary.byLanguage.kotlin}`
+    el.appendChild(stat)
+    if (summary.failureCount > 0) {
+      const warn = document.createElement('p')
+      warn.className = 'analysis__warn'
+      warn.textContent = `파싱 실패 ${summary.failureCount}개${summary.skippedDirCount > 0 ? ` · 건너뛴 폴더 ${summary.skippedDirCount}개` : ''}`
+      el.appendChild(warn)
+    }
+  } else if (status === 'error') {
+    const err = document.createElement('p')
+    err.className = 'analysis__error'
+    err.textContent = `분석 실패: ${error ?? '알 수 없는 오류'}`
+    el.appendChild(err)
+  }
+
+  return el
 }
 
 function renderWelcome(actions: TabContentActions): HTMLElement {
