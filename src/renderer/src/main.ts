@@ -62,9 +62,9 @@ if (root) {
 
     // 자체 검수(스크린샷) 모드: 분석 완료 결과를 시드해 분석 요약 UI를 확인한다.
     if (window.codetree.captureMode) {
-      const demo = store.openProject('/Users/example/AndroidProject', 'AndroidProject')
+      const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
       store.finishAnalysis(demo.id, {
-        root: '/Users/example/AndroidProject',
+        root: '/home/dev/AndroidProject',
         fileCount: 128,
         parsedCount: 126,
         failureCount: 2,
