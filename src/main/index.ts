@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { createMainWindow } from './window'
 import { buildAppMenu } from './menu'
+import { registerIpcHandlers } from './ipc'
 
 // 단일 인스턴스 보장 (01 §7).
 // 두 번째 인스턴스가 실행되면 락 획득에 실패하고 즉시 종료한다.
@@ -15,6 +16,7 @@ if (!gotSingleInstanceLock) {
   })
 
   app.whenReady().then(() => {
+    registerIpcHandlers()
     buildAppMenu()
     createMainWindow()
 
