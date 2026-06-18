@@ -1,8 +1,9 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
-import { basename } from 'node:path'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { basename, join } from 'node:path'
 import { SourceParser } from './analysis/parser'
 import { resolveParserConfig } from './analysis/wasm-paths'
-import { runAnalysis } from './analysis/runner'
+import { analyzeProject } from './analysis/runner'
+import { AnalysisCache } from './analysis/cache'
 import type { AnalysisSummary } from '../shared/analysis'
 
 export interface ProjectSelection {
@@ -22,6 +23,15 @@ function getParser(): Promise<SourceParser> {
     parserPromise = SourceParser.create(resolveParserConfig())
   }
   return parserPromise
+}
+
+// 분석 캐시(세션과 분리, userData). (02 §7.2, 01 §6)
+let analysisCache: AnalysisCache | null = null
+function getCache(): AnalysisCache {
+  if (!analysisCache) {
+    analysisCache = new AnalysisCache(join(app.getPath('userData'), 'analysis-cache'))
+  }
+  return analysisCache
 }
 
 /**
@@ -44,12 +54,13 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('analysis:run', async (event, payload: AnalyzePayload): Promise<AnalysisSummary> => {
     const parser = await getParser()
-    return runAnalysis(payload.projectPath, parser, {
+    const result = await analyzeProject(payload.projectPath, parser, getCache(), {
       onProgress: (progress) => {
         if (!event.sender.isDestroyed()) {
           event.sender.send('analysis:progress', { id: payload.id, progress })
         }
       }
     })
+    return result.summary
   })
 }
