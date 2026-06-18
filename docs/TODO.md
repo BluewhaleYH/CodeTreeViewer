@@ -16,12 +16,12 @@
 
 ## M0 — 스캐폴딩 / 툴체인 (MVP)
 
-- [ ] Electron + TypeScript + electron-vite 초기화, `npm run dev` HMR 기동 (`00` §4, `01` §2, CLAUDE.md §9)
-- [ ] main/preload/renderer 프로세스 골격 + 보안 기본값(contextIsolation on, nodeIntegration off, preload 경유 IPC) (`01` §2)
-- [ ] typecheck / lint / format 스크립트 구성 (CLAUDE.md §9)
-- [ ] Vitest 설정 + 스코프 테스트 1개 (CLAUDE.md §9)
-- [ ] `.gitignore` 구성(`screenshots/`, `reviews/`, `dist/`, `out/`, `node_modules/`) (CLAUDE.md §6, §9)
-- [ ] UI 검수용 스크린샷 캡처 절차(헤드리스 `xvfb` 지원) (CLAUDE.md §6)
+- [x] Electron + TypeScript + electron-vite 초기화, `npm run dev` HMR 기동 (`00` §4, `01` §2, CLAUDE.md §9)
+- [x] main/preload/renderer 프로세스 골격 + 보안 기본값(contextIsolation on, nodeIntegration off, preload 경유 IPC) (`01` §2)
+- [x] typecheck / lint / format 스크립트 구성 (CLAUDE.md §9)
+- [x] Vitest 설정 + 스코프 테스트 1개 (CLAUDE.md §9)
+- [x] `.gitignore` 구성(`screenshots/`, `reviews/`, `dist/`, `out/`, `node_modules/`) (CLAUDE.md §6, §9)
+- [x] UI 검수용 스크린샷 캡처 절차(헤드리스 `xvfb` 지원) (CLAUDE.md §6)
 
 ## M1 — 앱 셸: 창 / 단일 인스턴스 (MVP)
 
