@@ -31,17 +31,23 @@ if (root) {
       if (selection) store.openProject(selection.path, selection.name)
     }
 
-    // 메뉴 액션: 프로젝트 열기. 새 탭/탭 닫기 동작은 M2_2에서 연결한다.
+    // 메뉴 액션 연결. (01 §8)
     window.codetree.onMenuAction((action) => {
       if (action === 'open-project') void openProject()
+      else if (action === 'new-tab') store.addEmptyTab()
+      else if (action === 'close-tab') {
+        const active = store.getActiveId()
+        if (active) store.closeTab(active)
+      }
     })
 
     // 초기 상태: 빈 탭 1개.
     store.addEmptyTab()
 
-    // 자체 검수(스크린샷) 모드: 데모 프로젝트를 시드해 로드된 탭 UI를 확인한다.
+    // 자체 검수(스크린샷) 모드: 프로젝트 탭 + 빈 탭을 시드해 다중 탭/추가·닫기 UI를 확인한다.
     if (window.codetree.captureMode) {
       store.openProject('/Users/example/AndroidProject', 'AndroidProject')
+      store.addEmptyTab()
     }
 
     render()

@@ -1,7 +1,7 @@
 /**
  * 탭 상태 저장소 (순수 로직, DOM/electron 비의존 → 단위 테스트 대상).
  * 탭 = 프로젝트 1개. 탭별로 독립 상태를 가진다. (01 §4)
- * 닫기/전환은 M2_2, 탭별 분석·뷰 상태 컨테이너 확장은 M2_4에서 다룬다.
+ * 탭별 분석·뷰 상태 컨테이너 확장은 M2_4에서 다룬다.
  */
 
 export interface TabState {
@@ -68,5 +68,26 @@ export class TabStore {
     this.activeId = tab.id
     this.emit()
     return tab
+  }
+
+  /** 탭을 닫는다. 활성 탭을 닫으면 인접 탭(다음 → 이전)을 활성화한다. (M2_2) */
+  closeTab(id: string): void {
+    const index = this.tabs.findIndex((tab) => tab.id === id)
+    if (index === -1) return
+    this.tabs.splice(index, 1)
+    if (this.activeId === id) {
+      const fallback = this.tabs[index] ?? this.tabs[index - 1] ?? null
+      this.activeId = fallback ? fallback.id : null
+    }
+    this.emit()
+  }
+
+  /** 탭을 활성화(전환)한다. (M2_2) */
+  setActive(id: string): void {
+    if (this.activeId === id) return
+    if (this.tabs.some((tab) => tab.id === id)) {
+      this.activeId = id
+      this.emit()
+    }
   }
 }
