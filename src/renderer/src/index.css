@@ -137,6 +137,12 @@ body {
   font-size: 14px;
 }
 
+.analysis__substat {
+  margin-top: 0.15rem;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
 .analysis__warn {
   margin: 0.25rem 0 0;
   font-size: 13px;

@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ScannedFile } from './scanner'
 import type { AnalysisSummary } from '../../shared/analysis'
+import type { CodeGraph } from '../../shared/graph'
 
 /**
  * 분석 결과 캐시. (02 §7.2)
@@ -11,14 +12,15 @@ import type { AnalysisSummary } from '../../shared/analysis'
  * 저장 위치는 세션과 분리(userData). 사용자 프로젝트 폴더는 오염하지 않는다. (01 §6)
  */
 
-/** 분석 로직이 바뀌면 올린다(기존 캐시 무효화). */
-export const ANALYZER_VERSION = 1
+/** 분석 로직이 바뀌면 올린다(기존 캐시 무효화). M4_2 그래프 산출 추가로 2. */
+export const ANALYZER_VERSION = 2
 
 export interface CacheEntry {
   root: string
   version: number
   fingerprint: string
   summary: AnalysisSummary
+  graph: CodeGraph
 }
 
 /** 스캔된 파일들의 stat(mtime+size) 지문. 파일 목록/내용 변화 시 값이 바뀐다. */
