@@ -90,3 +90,54 @@ describe('TabStore — 탭 추가/닫기/전환 (M2_2)', () => {
     expect(store.getActiveId()).toBe(b.id)
   })
 })
+
+describe('TabStore — 탭별 독립 상태 컨테이너 (M2_4)', () => {
+  it('새 탭은 기본 뷰 모드(graph)를 가진다', () => {
+    const store = new TabStore()
+    const tab = store.addEmptyTab()
+    expect(tab.view.mode).toBe('graph')
+  })
+
+  it('프로젝트를 열어도 뷰 컨테이너가 초기화된다', () => {
+    const store = new TabStore()
+    store.addEmptyTab()
+    const a = store.openProject('/p/A', 'A')
+    const b = store.openProject('/p/B', 'B')
+    expect(a.view.mode).toBe('graph')
+    expect(b.view.mode).toBe('graph')
+  })
+
+  it('한 탭의 뷰 모드를 바꿔도 다른 탭에 영향이 없다 (격리)', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    const b = store.addEmptyTab()
+    store.setViewMode(a.id, 'tree')
+    expect(a.view.mode).toBe('tree')
+    expect(b.view.mode).toBe('graph')
+  })
+
+  it('탭별 프로젝트와 뷰 상태가 서로 독립적이다', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    store.openProject('/p/A', 'A') // a 재사용
+    const b = store.openProject('/p/B', 'B') // 새 탭
+    store.setViewMode(b.id, 'tree')
+    expect(a.projectName).toBe('A')
+    expect(a.view.mode).toBe('graph')
+    expect(b.projectName).toBe('B')
+    expect(b.view.mode).toBe('tree')
+  })
+
+  it('동일 모드로 setViewMode 시 통지하지 않는다', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    let count = 0
+    store.subscribe(() => {
+      count += 1
+    })
+    store.setViewMode(a.id, 'graph') // 이미 graph → 변화 없음
+    expect(count).toBe(0)
+    store.setViewMode(a.id, 'tree')
+    expect(count).toBe(1)
+  })
+})
