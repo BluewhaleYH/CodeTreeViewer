@@ -1,3 +1,6 @@
+> **[SUPERSEDED]** 본 문서는 초기 러프 기획안이며, `docs/00_OVERVIEW_SPEC.md` ~ `docs/06_CODE_EDITING_SPEC.md`로 대체되었다.
+> 기획·요구사항의 단일 출처(Single Source of Truth)는 위 SPEC 문서들이다. 본 문서는 이력 보존용으로만 남긴다.
+
 CodeTreeViewer
 
 사용자가 선택한 프로젝트 내부의 파일들간에 관계도를 태양계 나타내듯이 그리거나 트리 형태로 그리는 등 시각적으로 나타내느 프로젝트.
