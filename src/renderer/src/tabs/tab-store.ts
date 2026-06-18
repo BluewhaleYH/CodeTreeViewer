@@ -1,19 +1,36 @@
 /**
  * 탭 상태 저장소 (순수 로직, DOM/electron 비의존 → 단위 테스트 대상).
- * 탭 = 프로젝트 1개. 탭별로 독립 상태를 가진다. (01 §4)
- * 탭별 분석·뷰 상태 컨테이너 확장은 M2_4에서 다룬다.
+ * 탭 = 프로젝트 1개. 탭별로 독립적인 프로젝트·분석 결과·뷰 상태를 가진다. (01 §4)
  */
+
+/** 시각화 뷰 모드. 토글 UI는 M5/M6에서 연결한다. (03 §5.2) */
+export type ViewMode = 'graph' | 'tree'
+
+export interface TabViewState {
+  mode: ViewMode
+  // 선택/포커스 노드 등은 시각화 단계(M5/M6)에서 확장한다.
+}
 
 export interface TabState {
   id: string
   projectPath: string | null
   projectName: string | null
+  /** 탭별 독립 뷰 상태. (01 §4, 세션 복원은 M8) */
+  view: TabViewState
+  // 분석 결과 슬롯은 분석 단계(M3/M4)에서 채운다. 현재는 미보유.
 }
+
+const DEFAULT_VIEW_MODE: ViewMode = 'graph'
 
 let idCounter = 0
 function nextId(): string {
   idCounter += 1
   return `tab-${idCounter}`
+}
+
+/** 기본 상태로 새 탭을 만든다. 각 탭은 독립된 view 컨테이너를 갖는다. */
+function createTab(projectPath: string | null, projectName: string | null): TabState {
+  return { id: nextId(), projectPath, projectName, view: { mode: DEFAULT_VIEW_MODE } }
 }
 
 export class TabStore {
@@ -44,7 +61,7 @@ export class TabStore {
 
   /** 빈 탭(프로젝트 미선택)을 추가하고 활성화한다. */
   addEmptyTab(): TabState {
-    const tab: TabState = { id: nextId(), projectPath: null, projectName: null }
+    const tab = createTab(null, null)
     this.tabs.push(tab)
     this.activeId = tab.id
     this.emit()
@@ -63,11 +80,20 @@ export class TabStore {
       this.emit()
       return active
     }
-    const tab: TabState = { id: nextId(), projectPath: path, projectName: name }
+    const tab = createTab(path, name)
     this.tabs.push(tab)
     this.activeId = tab.id
     this.emit()
     return tab
+  }
+
+  /** 탭의 뷰 모드를 설정한다(탭별 독립). 토글 UI 연결은 M5/M6. (01 §4) */
+  setViewMode(id: string, mode: ViewMode): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (tab && tab.view.mode !== mode) {
+      tab.view = { ...tab.view, mode }
+      this.emit()
+    }
   }
 
   /** 탭을 닫는다. 활성 탭을 닫으면 인접 탭(다음 → 이전)을 활성화한다. (M2_2) */
