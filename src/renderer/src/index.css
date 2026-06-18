@@ -50,16 +50,14 @@ body {
 .tab {
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  gap: 6px;
+  padding: 0 8px 0 14px;
   max-width: 220px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   background: var(--bg-tab);
   color: var(--fg-muted);
   border: 1px solid transparent;
   border-bottom: none;
-  cursor: default;
+  cursor: pointer;
   font-size: 13px;
 }
 
@@ -67,6 +65,40 @@ body {
   background: var(--bg);
   color: var(--fg);
   border-color: var(--border);
+}
+
+.tab__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab__close,
+.tab-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tab__close:hover,
+.tab-add:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--fg);
+}
+
+.tab-add {
+  margin-left: 4px;
+  align-self: center;
 }
 
 /* 작업 영역 */

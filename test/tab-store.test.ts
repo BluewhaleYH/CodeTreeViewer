@@ -41,3 +41,52 @@ describe('TabStore — 프로젝트 열기 (M2_1)', () => {
     expect(count).toBe(2)
   })
 })
+
+describe('TabStore — 탭 추가/닫기/전환 (M2_2)', () => {
+  it('setActive로 탭을 전환한다', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    const b = store.addEmptyTab()
+    expect(store.getActiveId()).toBe(b.id)
+    store.setActive(a.id)
+    expect(store.getActiveId()).toBe(a.id)
+  })
+
+  it('활성 탭을 닫으면 다음 탭(없으면 이전)을 활성화한다', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    const b = store.addEmptyTab()
+    const c = store.addEmptyTab()
+    store.setActive(b.id)
+    store.closeTab(b.id)
+    // b 자리에 있던 다음 탭 c가 활성화
+    expect(store.getActiveId()).toBe(c.id)
+    expect(store.getTabs().map((t) => t.id)).toEqual([a.id, c.id])
+  })
+
+  it('마지막 탭을 닫으면 이전 탭을 활성화한다', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    const b = store.addEmptyTab()
+    store.setActive(b.id)
+    store.closeTab(b.id)
+    expect(store.getActiveId()).toBe(a.id)
+  })
+
+  it('유일한 탭을 닫으면 활성 탭이 없다', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    store.closeTab(a.id)
+    expect(store.getTabs()).toHaveLength(0)
+    expect(store.getActiveId()).toBeNull()
+  })
+
+  it('비활성 탭을 닫아도 활성 탭은 유지된다', () => {
+    const store = new TabStore()
+    const a = store.addEmptyTab()
+    const b = store.addEmptyTab()
+    expect(store.getActiveId()).toBe(b.id)
+    store.closeTab(a.id)
+    expect(store.getActiveId()).toBe(b.id)
+  })
+})
