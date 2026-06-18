@@ -14,8 +14,8 @@ function emit(channel: string): void {
 /**
  * 애플리케이션 메뉴를 구성한다. (01 §8)
  * 최소 메뉴: 프로젝트 열기 / 새 탭 / 탭 닫기 / 종료.
- * 종료는 macOS에서는 앱 메뉴(Cmd+Q), 그 외에는 파일 메뉴에 둔다.
- * 단축키 세부 표는 SPEC 추가) 항목으로 추후 확정한다.
+ * 단축키 수정자 키는 Ctrl 기준(주 대상 Windows/Linux, macOS 미지원 대상). (00 §10 D13)
+ * 종료는 macOS(개발 환경)에서는 앱 메뉴(Cmd+Q), 그 외에는 파일 메뉴에 둔다.
  */
 export function buildAppMenu(): void {
   const template: MenuItemConstructorOptions[] = [
@@ -25,12 +25,12 @@ export function buildAppMenu(): void {
       submenu: [
         {
           label: '프로젝트 열기…',
-          accelerator: 'CmdOrCtrl+O',
+          accelerator: 'Ctrl+O',
           click: () => emit('menu:open-project')
         },
         { type: 'separator' },
-        { label: '새 탭', accelerator: 'CmdOrCtrl+T', click: () => emit('menu:new-tab') },
-        { label: '탭 닫기', accelerator: 'CmdOrCtrl+W', click: () => emit('menu:close-tab') },
+        { label: '새 탭', accelerator: 'Ctrl+T', click: () => emit('menu:new-tab') },
+        { label: '탭 닫기', accelerator: 'Ctrl+W', click: () => emit('menu:close-tab') },
         ...(isMac
           ? []
           : [{ type: 'separator' as const }, { role: 'quit' as const, label: '종료' }])
