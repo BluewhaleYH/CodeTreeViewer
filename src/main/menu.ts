@@ -1,0 +1,42 @@
+import { BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron'
+
+const isMac = process.platform === 'darwin'
+
+/**
+ * 메뉴 액션을 렌더러로 보낸다. 실제 동작(폴더 선택/탭 추가·닫기)은 M2에서 렌더러가 수신해 처리한다.
+ * 포커스된 창이 없으면 첫 번째 창으로 보낸다.
+ */
+function emit(channel: string): void {
+  const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  target?.webContents.send(channel)
+}
+
+/**
+ * 애플리케이션 메뉴를 구성한다. (01 §8)
+ * 최소 메뉴: 프로젝트 열기 / 새 탭 / 탭 닫기 / 종료.
+ * 종료는 macOS에서는 앱 메뉴(Cmd+Q), 그 외에는 파일 메뉴에 둔다.
+ * 단축키 세부 표는 SPEC 추가) 항목으로 추후 확정한다.
+ */
+export function buildAppMenu(): void {
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac ? [{ role: 'appMenu' as const }] : []),
+    {
+      label: '파일',
+      submenu: [
+        {
+          label: '프로젝트 열기…',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => emit('menu:open-project')
+        },
+        { type: 'separator' },
+        { label: '새 탭', accelerator: 'CmdOrCtrl+T', click: () => emit('menu:new-tab') },
+        { label: '탭 닫기', accelerator: 'CmdOrCtrl+W', click: () => emit('menu:close-tab') },
+        ...(isMac
+          ? []
+          : [{ type: 'separator' as const }, { role: 'quit' as const, label: '종료' }])
+      ]
+    }
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
