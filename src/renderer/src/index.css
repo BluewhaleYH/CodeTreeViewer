@@ -126,3 +126,49 @@ body {
 .muted {
   color: var(--fg-muted);
 }
+
+/* 빈 상태 welcome 화면 */
+.welcome {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.welcome__icon {
+  font-size: 48px;
+  opacity: 0.9;
+}
+
+.welcome__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.welcome__desc {
+  margin: 0;
+  max-width: 420px;
+  color: var(--fg-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.welcome__button {
+  margin-top: 0.5rem;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.welcome__button:hover {
+  filter: brightness(1.08);
+}
