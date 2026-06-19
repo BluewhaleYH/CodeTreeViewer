@@ -82,6 +82,7 @@ async function analyzeScanned(
     byLanguage,
     skippedDirCount: scanResult.skippedDirs.length,
     nodeCount: graph.nodes.length,
+    externalNodeCount: graph.nodes.filter((n) => n.external).length,
     edgeCount: graph.edges.length,
     failures
   }

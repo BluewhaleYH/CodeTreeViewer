@@ -68,7 +68,7 @@ function renderAnalysis(tab: TabState): HTMLElement {
 
     const graphStat = document.createElement('p')
     graphStat.className = 'analysis__stat analysis__substat'
-    graphStat.textContent = `의존성: 노드 ${summary.nodeCount} · 엣지 ${summary.edgeCount}`
+    graphStat.textContent = `의존성: 노드 ${summary.nodeCount} · 엣지 ${summary.edgeCount} · 외부 ${summary.externalNodeCount}`
     el.appendChild(graphStat)
 
     if (summary.failureCount > 0) {
