@@ -288,3 +288,58 @@ describe('TabStore — 세션 직렬화/복원 (M8_3)', () => {
     expect(store2.serialize()).toEqual(snapshot)
   })
 })
+
+describe('TabStore — 뷰 상태(모드/선택 노드) 영속 (M8_4)', () => {
+  it('뷰 모드와 선택 노드를 직렬화한다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setViewMode(a.id, 'tree')
+    store.setSelectedNode(a.id, 'file:Repository.kt')
+    const snapshot = store.serialize()
+    expect(snapshot.tabs[0].view).toEqual({ mode: 'tree', selectedNodeId: 'file:Repository.kt' })
+  })
+
+  it('뷰 모드와 선택 노드를 복원한다', () => {
+    const store = new TabStore()
+    const restored = store.restore(
+      [
+        {
+          projectPath: '/p/A',
+          projectName: 'A',
+          view: { mode: 'tree', selectedNodeId: 'file:Api.kt' }
+        }
+      ],
+      0
+    )
+    expect(restored[0].view.mode).toBe('tree')
+    expect(restored[0].view.selectedNodeId).toBe('file:Api.kt')
+  })
+
+  it('복원된 뷰는 원본 persisted 객체와 분리된다(참조 비공유)', () => {
+    const store = new TabStore()
+    const persisted = [
+      {
+        projectPath: '/p/A',
+        projectName: 'A',
+        view: { mode: 'graph' as const, selectedNodeId: 'x' }
+      }
+    ]
+    const restored = store.restore(persisted, 0)
+    store.setSelectedNode(restored[0].id, 'y')
+    expect(persisted[0].view.selectedNodeId).toBe('x')
+  })
+
+  it('뷰 상태까지 포함한 serialize→restore 왕복을 보존한다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setViewMode(a.id, 'tree')
+    store.setSelectedNode(a.id, 'file:A.kt')
+    const b = store.openProject('/p/B', 'B')
+    store.setSelectedNode(b.id, 'file:B.kt')
+    const snapshot = store.serialize()
+
+    const store2 = new TabStore()
+    store2.restore(snapshot.tabs, snapshot.activeIndex)
+    expect(store2.serialize()).toEqual(snapshot)
+  })
+})

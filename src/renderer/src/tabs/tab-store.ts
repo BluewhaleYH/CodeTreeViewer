@@ -187,27 +187,30 @@ export class TabStore {
   }
 
   /**
-   * 세션 저장용으로 탭 목록을 직렬화한다. (01 §5, M8_3)
-   * M8_3 범위는 탭/프로젝트 경로/활성 탭이며, 뷰 상태(모드/선택 노드)는 기본값으로 둔다.
-   * (뷰 상태 영속은 M8_4)
+   * 세션 저장용으로 탭 목록을 직렬화한다. (01 §5, M8_3·M8_4)
+   * 탭/프로젝트 경로/활성 탭과 각 탭의 뷰 상태(모드 + 선택 노드)를 포함한다.
    */
   serialize(): { tabs: PersistedTab[]; activeIndex: number } {
     const tabs: PersistedTab[] = this.tabs.map((tab) => ({
       projectPath: tab.projectPath,
       projectName: tab.projectName,
-      view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null }
+      view: { mode: tab.view.mode, selectedNodeId: tab.view.selectedNodeId }
     }))
     const activeIndex = this.tabs.findIndex((tab) => tab.id === this.activeId)
     return { tabs, activeIndex: activeIndex === -1 ? 0 : activeIndex }
   }
 
   /**
-   * 세션에서 탭 목록을 복원한다. (01 §5, M8_3)
-   * 기존 탭을 대체하고, activeIndex 위치의 탭을 활성화한다. 복원된 탭 목록을 반환한다.
-   * 분석 결과는 영속되지 않으므로 호출 측에서 프로젝트 탭을 재분석한다.
+   * 세션에서 탭 목록을 복원한다. (01 §5, M8_3·M8_4)
+   * 기존 탭을 대체하고, 각 탭의 뷰 상태(모드/선택 노드)를 복원하며 activeIndex 탭을 활성화한다.
+   * 복원된 탭 목록을 반환한다. 분석 결과는 영속되지 않으므로 호출 측에서 프로젝트 탭을 재분석한다.
    */
   restore(persisted: readonly PersistedTab[], activeIndex: number): TabState[] {
-    this.tabs = persisted.map((p) => createTab(p.projectPath, p.projectName))
+    this.tabs = persisted.map((p) => {
+      const tab = createTab(p.projectPath, p.projectName)
+      tab.view = { mode: p.view.mode, selectedNodeId: p.view.selectedNodeId }
+      return tab
+    })
     const active = this.tabs[activeIndex] ?? this.tabs[0] ?? null
     this.activeId = active ? active.id : null
     this.emit()
