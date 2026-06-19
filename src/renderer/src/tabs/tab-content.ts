@@ -30,11 +30,31 @@ export function renderOverlay(
   if (status === 'done' && active.analysis.summary) {
     host.className = 'ws-overlay ws-overlay--corner'
     host.appendChild(renderStatsPanel(active))
+    host.appendChild(renderViewToggle(active, store))
     return
   }
 
   host.className = 'ws-overlay ws-overlay--center'
   host.appendChild(renderStatus(active))
+}
+
+/** 관계도 ↔ 트리 전환 토글. (03 §5.2, M6_1) */
+function renderViewToggle(tab: TabState, store: TabStore): HTMLElement {
+  const wrap = document.createElement('div')
+  wrap.className = 'view-toggle'
+
+  const modes: { mode: 'graph' | 'tree'; label: string }[] = [
+    { mode: 'graph', label: '관계도' },
+    { mode: 'tree', label: '트리' }
+  ]
+  for (const { mode, label } of modes) {
+    const button = document.createElement('button')
+    button.className = tab.view.mode === mode ? 'view-toggle__btn is-active' : 'view-toggle__btn'
+    button.textContent = label
+    button.addEventListener('click', () => store.setViewMode(tab.id, mode))
+    wrap.appendChild(button)
+  }
+  return wrap
 }
 
 function renderStatus(tab: TabState): HTMLElement {
