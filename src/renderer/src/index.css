@@ -170,20 +170,18 @@ body {
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  line-height: 1.5;
 }
 
-.logview__lines {
-  min-width: 100%;
+/* 가상 스크롤: 보이는 행만 렌더, 위/아래 패딩으로 전체 높이 유지. (M11_2) */
+.logview__window {
   width: max-content;
-}
-
-.logview__lines.is-wrap {
-  width: 100%;
+  min-width: 100%;
 }
 
 .logview__row {
   display: flex;
+  height: 18px;
+  line-height: 18px;
 }
 
 .logview__row:hover {
@@ -202,11 +200,6 @@ body {
 .logview__text {
   white-space: pre;
   padding-right: 12px;
-}
-
-.logview__lines.is-wrap .logview__text {
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 
 /* 그래프 캔버스(Cytoscape 호스트) */
