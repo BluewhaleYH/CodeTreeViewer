@@ -69,7 +69,7 @@ export function registerIpcHandlers(): void {
           }
         }
       })
-      return { summary: result.summary, graph: result.graph }
+      return { summary: result.summary, graph: result.graph, logSites: result.logSites }
     }
   )
 

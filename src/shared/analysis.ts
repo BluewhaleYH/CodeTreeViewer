@@ -4,6 +4,7 @@
  */
 
 import type { CodeGraph } from './graph'
+import type { LogSite } from './log'
 
 export type SourceLanguage = 'java' | 'kotlin'
 
@@ -40,8 +41,10 @@ export interface AnalysisSummary {
   failures: AnalysisFailure[]
 }
 
-/** 분석 결과(IPC로 렌더러에 전달). 요약 + 그래프 본체. */
+/** 분석 결과(IPC로 렌더러에 전달). 요약 + 그래프 + 로그 호출 위치. */
 export interface AnalysisResult {
   summary: AnalysisSummary
   graph: CodeGraph
+  /** 로그→코드 역추적용 소스 로그 호출 위치. (04 §5, M11_4) */
+  logSites: LogSite[]
 }

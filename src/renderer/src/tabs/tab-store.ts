@@ -5,6 +5,7 @@
 
 import type { AnalysisProgress, AnalysisSummary } from '../../../shared/analysis'
 import type { CodeGraph } from '../../../shared/graph'
+import type { LogSite } from '../../../shared/log'
 import type { PersistedTab } from '../../../shared/session'
 
 /** 시각화 뷰 모드. 토글 UI는 M5/M6에서 연결한다. (03 §5.2) */
@@ -29,6 +30,8 @@ export interface TabAnalysisState {
   progress: AnalysisProgress | null
   summary: AnalysisSummary | null
   graph: CodeGraph | null
+  /** 로그→코드 역추적용 소스 로그 호출 위치. (04 §5, M11_4) */
+  logSites: LogSite[]
   error: string | null
 }
 
@@ -37,6 +40,8 @@ export interface TabLogState {
   path: string
   name: string
   lines: string[]
+  /** 선택된 로그 라인(0-based). 역추적 후보 표시용. (04 §5, M11_4) */
+  selectedLine: number | null
 }
 
 export interface TabState {
@@ -54,7 +59,7 @@ export interface TabState {
 const DEFAULT_VIEW_MODE: ViewMode = 'graph'
 
 function createAnalysisState(): TabAnalysisState {
-  return { status: 'idle', progress: null, summary: null, graph: null, error: null }
+  return { status: 'idle', progress: null, summary: null, graph: null, logSites: [], error: null }
 }
 
 let idCounter = 0
@@ -179,6 +184,14 @@ export class TabStore {
     this.emit()
   }
 
+  /** 로그 라인을 선택한다(역추적 후보 표시). (04 §5, M11_4) */
+  selectLogLine(id: string, index: number | null): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || !tab.log || tab.log.selectedLine === index) return
+    tab.log = { ...tab.log, selectedLine: index }
+    this.emit()
+  }
+
   /** 분석 상태를 갱신한다(탭이 없으면 무시). */
   private patchAnalysis(id: string, analysis: TabAnalysisState): void {
     const tab = this.tabs.find((t) => t.id === id)
@@ -193,6 +206,7 @@ export class TabStore {
       progress: null,
       summary: null,
       graph: null,
+      logSites: [],
       error: null
     })
   }
@@ -204,12 +218,31 @@ export class TabStore {
     this.emit()
   }
 
-  finishAnalysis(id: string, summary: AnalysisSummary, graph: CodeGraph): void {
-    this.patchAnalysis(id, { status: 'done', progress: null, summary, graph, error: null })
+  finishAnalysis(
+    id: string,
+    summary: AnalysisSummary,
+    graph: CodeGraph,
+    logSites: LogSite[] = []
+  ): void {
+    this.patchAnalysis(id, {
+      status: 'done',
+      progress: null,
+      summary,
+      graph,
+      logSites,
+      error: null
+    })
   }
 
   failAnalysis(id: string, error: string): void {
-    this.patchAnalysis(id, { status: 'error', progress: null, summary: null, graph: null, error })
+    this.patchAnalysis(id, {
+      status: 'error',
+      progress: null,
+      summary: null,
+      graph: null,
+      logSites: [],
+      error
+    })
   }
 
   /** 탭을 닫는다. 활성 탭을 닫으면 인접 탭(다음 → 이전)을 활성화한다. (M2_2) */

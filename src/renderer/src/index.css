@@ -267,6 +267,11 @@ body {
 
 .logview__row:hover {
   background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.logview__row.is-selected {
+  background: rgba(74, 158, 255, 0.18);
 }
 
 .logview__ln {
@@ -513,6 +518,62 @@ body {
 
 .info-panel__fn:hover {
   text-decoration: underline;
+}
+
+/* 로그→코드 후보 패널. (04 §5, M11_4) */
+.candidate-panel {
+  max-width: 360px;
+}
+
+.candidate-panel__line {
+  margin-top: 6px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.candidate-panel__none {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.candidate-panel__list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.candidate-panel__item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-tab);
+  color: var(--fg);
+  padding: 4px 8px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.candidate-panel__item:hover {
+  filter: brightness(1.15);
+}
+
+.candidate-panel__loc {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.candidate-panel__fmt {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 역추적 패널. (M10_2) */

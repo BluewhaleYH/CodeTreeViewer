@@ -2,7 +2,10 @@ import type { TabState, TabStore } from './tab-store'
 import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
 import { assignDomainColors } from '../graph/domain-colors'
 import { buildCallerAdjacency } from '../graph/backtrace'
+import { parseLogcatLine } from '../log/logcat-parse'
+import { matchLogSites } from '../log/log-match'
 import type { CodeGraph } from '../../../shared/graph'
+import type { LogSite } from '../../../shared/log'
 
 export interface TabContentActions {
   openProject: () => void
@@ -10,6 +13,8 @@ export interface TabContentActions {
   backtrace: (functionId: string) => void
   /** 역추적을 종료하고 파일 그래프로 돌아간다. (M10_2) */
   exitBacktrace: () => void
+  /** 로그→코드 후보를 선택해 해당 소스 노드로 이동한다. (04 §5, M11_4) */
+  openCandidate: (site: LogSite) => void
 }
 
 /**
@@ -48,6 +53,10 @@ export function renderOverlay(
         const info = renderInfoPanel(graph, active.view.selectedNodeId, actions)
         if (info) host.appendChild(info)
       }
+    }
+    // 로그→코드 역추적 후보 패널(선택 라인 있을 때). (04 §5, M11_4)
+    if (active.log && active.log.selectedLine !== null) {
+      host.appendChild(renderCandidatePanel(active, active.log.selectedLine, actions))
     }
     return
   }
@@ -158,6 +167,64 @@ function renderBacktracePanel(
   exit.addEventListener('click', () => actions.exitBacktrace())
 
   panel.append(title, sub, exit)
+  return panel
+}
+
+/** 로그→코드 역추적 후보 패널. 다중 후보는 목록으로 제시(단정 금지). (04 §5.2, M11_4) */
+function renderCandidatePanel(
+  active: TabState,
+  selectedLine: number,
+  actions: TabContentActions
+): HTMLElement {
+  const raw = active.log?.lines[selectedLine] ?? ''
+  const fields = parseLogcatLine(raw)
+  const candidates = matchLogSites(raw, fields, active.analysis.logSites)
+
+  const panel = document.createElement('div')
+  panel.className = 'info-panel candidate-panel'
+
+  const title = document.createElement('div')
+  title.className = 'info-panel__title'
+  title.textContent = '로그 → 코드'
+
+  const line = document.createElement('div')
+  line.className = 'candidate-panel__line muted'
+  line.textContent = fields ? `[${fields.level}/${fields.tag}] ${fields.message}` : raw
+  line.title = raw
+
+  panel.append(title, line)
+
+  if (candidates.length === 0) {
+    const none = document.createElement('div')
+    none.className = 'candidate-panel__none muted'
+    none.textContent = '일치하는 코드 위치를 찾지 못했습니다.'
+    panel.appendChild(none)
+    return panel
+  }
+
+  const head = document.createElement('div')
+  head.className = 'info-panel__section'
+  head.textContent = candidates.length === 1 ? '후보 1곳' : `후보 ${candidates.length}곳`
+  panel.appendChild(head)
+
+  const list = document.createElement('ul')
+  list.className = 'candidate-panel__list'
+  for (const site of candidates.slice(0, 20)) {
+    const li = document.createElement('li')
+    const btn = document.createElement('button')
+    btn.className = 'candidate-panel__item'
+    const loc = document.createElement('span')
+    loc.className = 'candidate-panel__loc'
+    loc.textContent = `${site.file}:${site.line}`
+    const fmt = document.createElement('span')
+    fmt.className = 'candidate-panel__fmt muted'
+    fmt.textContent = site.format
+    btn.append(loc, fmt)
+    btn.addEventListener('click', () => actions.openCandidate(site))
+    li.appendChild(btn)
+    list.appendChild(li)
+  }
+  panel.appendChild(list)
   return panel
 }
 

@@ -8,8 +8,8 @@ import { buildSearchIndex, focusTargetId } from './search/search-index'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
 import { LogView } from './log/log-view'
 import { splitLines } from './log/log-lines'
-import { DEMO_LOG_LINES } from './log/demo-log'
-import { functionNodeId } from '../../shared/graph'
+import { DEMO_LOG_LINES, DEMO_LOG_SITES } from './log/demo-log'
+import { fileNodeId } from '../../shared/graph'
 
 const root = document.getElementById('app')
 
@@ -59,7 +59,11 @@ if (root) {
       const activeId = store.getActiveId()
       if (activeId) store.closeLog(activeId)
     }
-    const logView = new LogView(wsLog, { onClose: closeLog })
+    const selectLogLine = (index: number): void => {
+      const activeId = store.getActiveId()
+      if (activeId) store.selectLogLine(activeId, index)
+    }
+    const logView = new LogView(wsLog, { onClose: closeLog, onSelectLine: selectLogLine })
 
     const isCapture = window.codetree.captureMode
 
@@ -79,7 +83,8 @@ if (root) {
       renderOverlay(wsOverlay, store, {
         openProject: () => void openProject(),
         backtrace: startBacktrace,
-        exitBacktrace
+        exitBacktrace,
+        openCandidate: (site) => selectNode(fileNodeId(site.file))
       })
       const active = store.getActive()
       graphView.sync(active)
@@ -90,6 +95,7 @@ if (root) {
           name: active.log.name,
           lines: active.log.lines
         })
+        logView.setSelectedLine(active.log.selectedLine)
       } else {
         wsLog.hidden = true
         logView.setDump(null, null)
@@ -111,7 +117,7 @@ if (root) {
         const result = await window.codetree.runAnalysis(projectPath, (progress) =>
           store.setAnalysisProgress(tabId, progress)
         )
-        store.finishAnalysis(tabId, result.summary, result.graph)
+        store.finishAnalysis(tabId, result.summary, result.graph, result.logSites)
       } catch (error) {
         store.failAnalysis(tabId, error instanceof Error ? error.message : String(error))
       }
@@ -134,7 +140,8 @@ if (root) {
       store.openLog(activeId, {
         path: result.path,
         name: result.name,
-        lines: splitLines(result.content)
+        lines: splitLines(result.content),
+        selectedLine: null
       })
     }
 
@@ -176,14 +183,14 @@ if (root) {
         // 자체 검수(스크린샷) 모드: 데모 그래프를 시드해 캔버스 렌더를 확인한다.
         store.addEmptyTab()
         const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
-        store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
-        // 역추적 데모: Repository.load의 호출처 체인 표시. (M10_2)
-        store.setBacktrace(demo.id, functionNodeId('core/src/main/kotlin/Repository.kt', 'load'))
-        // 로그 분석 데모: 좌측 로그 패널. (M11_1)
+        store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph(), DEMO_LOG_SITES)
+        store.setSelectedNode(demo.id, fileNodeId('core/src/main/kotlin/Repository.kt'))
+        // 로그 분석 데모: 좌측 로그 패널 + 로그→코드 역추적 후보. (M11_1, M11_4)
         store.openLog(demo.id, {
           path: '/logs/app.logcat',
           name: 'app.logcat',
-          lines: DEMO_LOG_LINES
+          lines: DEMO_LOG_LINES,
+          selectedLine: 5 // E Repository load failed 라인 → 다중 후보 매칭
         })
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
