@@ -2,6 +2,7 @@ import { visibleRange } from './log-virtual'
 import { parseAll, type LogcatFields, type LogLevel } from './logcat-parse'
 import { ALL_LEVELS, filterIndices, type LogFilter } from './log-filter'
 import { relatedLogLines } from './log-match'
+import { searchMatches } from './log-search'
 import type { LogSite } from '../../../shared/log'
 
 /**
@@ -43,11 +44,20 @@ export class LogView {
   private textQuery = ''
   private useRegex = false
 
+  // 검색(이동/강조). (M11_6)
+  private searchQuery = ''
+  private searchRegex = false
+  private matches: number[] = []
+  private matchSet: Set<number> = new Set()
+  private matchPos = -1
+
   private readonly countEl: HTMLElement
   private readonly body: HTMLElement
   private readonly windowEl: HTMLElement
   private readonly tagInput: HTMLInputElement
   private readonly textInput: HTMLInputElement
+  private readonly searchInput: HTMLInputElement
+  private readonly searchCount: HTMLElement
 
   constructor(
     private readonly host: HTMLElement,
@@ -66,6 +76,13 @@ export class LogView {
         <input class="logview__textq" type="text" placeholder="텍스트" spellcheck="false" />
         <label class="logview__regex"><input type="checkbox" /> 정규식</label>
       </div>
+      <div class="logview__search">
+        <input class="logview__searchq" type="text" placeholder="로그 검색" spellcheck="false" />
+        <span class="logview__matchcount muted"></span>
+        <button class="logview__navbtn logview__prev" title="이전 매치 (Shift+Enter)">▲</button>
+        <button class="logview__navbtn logview__next" title="다음 매치 (Enter)">▼</button>
+        <label class="logview__regex"><input class="logview__sregex" type="checkbox" /> 정규식</label>
+      </div>
       <div class="logview__body"><div class="logview__window"></div></div>
     `
     this.countEl = this.host.querySelector('.logview__count') as HTMLElement
@@ -73,8 +90,35 @@ export class LogView {
     this.windowEl = this.host.querySelector('.logview__window') as HTMLElement
     this.tagInput = this.host.querySelector('.logview__tag') as HTMLInputElement
     this.textInput = this.host.querySelector('.logview__textq') as HTMLInputElement
+    this.searchInput = this.host.querySelector('.logview__searchq') as HTMLInputElement
+    this.searchCount = this.host.querySelector('.logview__matchcount') as HTMLElement
     ;(this.host.querySelector('.logview__close') as HTMLElement).addEventListener('click', () =>
       this.callbacks.onClose()
+    )
+
+    // 검색: 입력 → 매치 갱신, Enter/▼ 다음, Shift+Enter/▲ 이전. (M11_6)
+    this.searchInput.addEventListener('input', () => {
+      this.searchQuery = this.searchInput.value
+      this.updateMatches()
+    })
+    this.searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        this.step(e.shiftKey ? -1 : 1)
+      }
+    })
+    ;(this.host.querySelector('.logview__sregex') as HTMLInputElement).addEventListener(
+      'change',
+      (e) => {
+        this.searchRegex = (e.target as HTMLInputElement).checked
+        this.updateMatches()
+      }
+    )
+    ;(this.host.querySelector('.logview__next') as HTMLElement).addEventListener('click', () =>
+      this.step(1)
+    )
+    ;(this.host.querySelector('.logview__prev') as HTMLElement).addEventListener('click', () =>
+      this.step(-1)
     )
 
     this.buildLevelToggles()
@@ -133,9 +177,22 @@ export class LogView {
     this.selectedLine = null
     this.related = new Set()
     this.relatedKey = null
+    this.searchQuery = ''
+    this.searchInput.value = ''
+    this.matches = []
+    this.matchSet = new Set()
+    this.matchPos = -1
+    this.renderSearchCount()
     this.host.classList.toggle('is-active', Boolean(dump))
     ;(this.host.querySelector('.logview__title') as HTMLElement).textContent = this.name
     this.applyFilter()
+  }
+
+  /** 자체 검수(스크린샷)용 검색 시드. */
+  seedSearch(query: string): void {
+    this.searchQuery = query
+    this.searchInput.value = query
+    this.updateMatches()
   }
 
   /** 선택 라인을 외부(store)와 동기화한다. 같으면 무시. */
@@ -162,7 +219,40 @@ export class LogView {
         ? `${this.lines.length.toLocaleString()} 라인`
         : `${this.visible.length.toLocaleString()} / ${this.lines.length.toLocaleString()} 라인`
     this.body.scrollTop = 0
+    this.updateMatches() // 필터 변경 시 검색 매치도 갱신
     this.renderWindow()
+  }
+
+  /** 검색 매치를 (현재 표시 라인 위에서) 재계산하고 카운트를 갱신한다. (M11_6) */
+  private updateMatches(): void {
+    this.matches = searchMatches(this.lines, this.visible, this.searchQuery, this.searchRegex)
+    this.matchSet = new Set(this.matches)
+    this.matchPos = this.matches.length > 0 ? 0 : -1
+    this.renderSearchCount()
+    this.renderWindow()
+  }
+
+  private renderSearchCount(): void {
+    this.searchCount.textContent =
+      this.searchQuery === ''
+        ? ''
+        : this.matches.length === 0
+          ? '0'
+          : `${this.matchPos + 1}/${this.matches.length}`
+  }
+
+  /** 다음(dir=1)/이전(dir=-1) 매치로 이동: 스크롤 + 라인 선택(3중 연동). (M11_6) */
+  private step(dir: number): void {
+    if (this.matches.length === 0) return
+    this.matchPos = (this.matchPos + dir + this.matches.length) % this.matches.length
+    const originalIndex = this.matches[this.matchPos]
+    const pos = this.visible.indexOf(originalIndex)
+    if (pos >= 0) {
+      this.body.scrollTop = Math.max(0, pos * ROW_HEIGHT - this.body.clientHeight / 2)
+    }
+    this.renderSearchCount()
+    this.renderWindow()
+    this.callbacks.onSelectLine(originalIndex, this.lines[originalIndex])
   }
 
   /** 보이는 구간만 렌더하고, 위/아래 패딩으로 전체 스크롤 높이를 유지한다(가상 스크롤). */
@@ -185,6 +275,11 @@ export class LogView {
       const row = document.createElement('div')
       row.className = fields ? `logview__row level-${fields.level}` : 'logview__row'
       if (this.related.has(originalIndex)) row.classList.add('is-related')
+      if (this.matchPos >= 0 && this.matches[this.matchPos] === originalIndex) {
+        row.classList.add('is-match-current')
+      } else if (this.matchSet.has(originalIndex)) {
+        row.classList.add('is-match')
+      }
       if (originalIndex === this.selectedLine) row.classList.add('is-selected')
       row.addEventListener('click', () =>
         this.callbacks.onSelectLine(originalIndex, this.lines[originalIndex])

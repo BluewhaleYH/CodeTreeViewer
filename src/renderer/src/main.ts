@@ -235,6 +235,8 @@ if (root) {
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
         searchView.seedHistory(['Repository', 'ViewModel', 'load'])
+        // 로그 검색 시연. (M11_6)
+        logView.seedSearch('Repository')
         // 세션 손상 알림 배너 시연.
         showBanner(SESSION_CORRUPTED_MSG)
         return

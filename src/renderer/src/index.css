@@ -236,11 +236,60 @@ body {
   white-space: nowrap;
 }
 
+/* 검색 바(이동/강조). (04 §8, M11_6) */
+.logview__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logview__searchq {
+  flex: 1;
+  min-width: 60px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.logview__matchcount {
+  font-size: 11px;
+  min-width: 34px;
+  text-align: right;
+}
+
+.logview__navbtn {
+  width: 22px;
+  height: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-tab);
+  color: var(--fg);
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.logview__navbtn:hover {
+  filter: brightness(1.2);
+}
+
 .logview__body {
   flex: 1;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
+}
+
+.logview__row.is-match {
+  background: rgba(226, 179, 65, 0.1);
+}
+
+.logview__row.is-match-current {
+  background: rgba(226, 179, 65, 0.32);
 }
 
 /* 레벨별 라인 색조(경고/오류 강조). (M11_3) */
