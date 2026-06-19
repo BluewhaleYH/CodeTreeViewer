@@ -29,6 +29,8 @@ export interface AnalysisSummary {
   functionNodeCount: number
   /** 외부/미해결 노드 수. (02 §9) */
   externalNodeCount: number
+  /** 구분된 영역(Domain) 수(파일 노드 기준). (02 §5) */
+  domainCount: number
   /** 그래프 엣지 수(파일 의존성 등). (02 §4) */
   edgeCount: number
   failures: AnalysisFailure[]

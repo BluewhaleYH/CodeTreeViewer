@@ -12,8 +12,8 @@ import type { CodeGraph } from '../../shared/graph'
  * 저장 위치는 세션과 분리(userData). 사용자 프로젝트 폴더는 오염하지 않는다. (01 §6)
  */
 
-/** 분석 로직이 바뀌면 올린다(기존 캐시 무효화). M4_4 함수 노드 추가로 4. */
-export const ANALYZER_VERSION = 4
+/** 분석 로직이 바뀌면 올린다(기존 캐시 무효화). M4_5 영역 분류 추가로 5. */
+export const ANALYZER_VERSION = 5
 
 export interface CacheEntry {
   root: string

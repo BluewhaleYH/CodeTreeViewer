@@ -146,3 +146,20 @@ describe('함수/메서드 정의 노드 (M4_4)', () => {
     expect(fn?.line).toBe(3)
   })
 })
+
+describe('영역(Domain) 부여 (M4_5)', () => {
+  it('파일/함수 노드에 영역(모듈)을 부여하고 외부는 null', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-dom-'))
+    await write('app/src/main/java/a/A.java', 'package a;\nimport ext.Lib;\nclass A {\n  void m() {}\n}')
+    await write('core/src/main/java/b/B.java', 'package b;\nclass B {}')
+
+    const { graph, summary } = await runAnalysis(root, parser)
+    const fileA = graph.nodes.find((n) => n.path === 'app/src/main/java/a/A.java' && n.kind === 'file')
+    expect(fileA?.domain).toBe('app')
+    const fnM = graph.nodes.find((n) => n.kind === 'function' && n.name === 'm')
+    expect(fnM?.domain).toBe('app') // 소속 파일의 영역
+    const ext = graph.nodes.find((n) => n.external)
+    expect(ext?.domain).toBeNull()
+    expect(summary.domainCount).toBe(2) // app, core
+  })
+})

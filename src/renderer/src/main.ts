@@ -73,6 +73,7 @@ if (root) {
         nodeCount: 685,
         functionNodeCount: 540,
         externalNodeCount: 17,
+        domainCount: 6,
         edgeCount: 214,
         failures: [
           { relativePath: 'app/src/main/java/Broken.java', reason: 'EACCES: permission denied' },

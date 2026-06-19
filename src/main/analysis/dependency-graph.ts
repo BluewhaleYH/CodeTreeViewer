@@ -1,6 +1,7 @@
 import { basename } from 'node:path'
 import { GraphBuilder } from './graph-builder'
 import { externalNodeId, fileNodeId, functionNodeId, type CodeGraph } from '../../shared/graph'
+import { classifyDomain, type DomainRule } from './domain'
 import type { ScannedFile } from './scanner'
 import type { FileInfo, ImportRef } from './extract'
 
@@ -22,11 +23,12 @@ function stripSourceExt(name: string): string {
 
 export function buildFileGraph(
   files: readonly ScannedFile[],
-  infos: readonly FileInfo[]
+  infos: readonly FileInfo[],
+  domainRules: readonly DomainRule[] = []
 ): CodeGraph {
   const builder = new GraphBuilder()
 
-  // 1) 스캔된 모든 파일을 노드로.
+  // 1) 스캔된 모든 파일을 노드로. 영역(Domain) 분류 부여. (M4_5, D10)
   for (const file of files) {
     builder.addNode({
       id: fileNodeId(file.relativePath),
@@ -34,14 +36,15 @@ export function buildFileGraph(
       name: basename(file.relativePath),
       path: file.relativePath,
       language: file.language,
-      domain: null,
+      domain: classifyDomain(file.relativePath, domainRules),
       external: false,
       line: null
     })
   }
 
-  // 1-1) 함수/메서드 정의 노드(검색·라벨용, 호출 엣지 없음). (M4_4, D7)
+  // 1-1) 함수/메서드 정의 노드(검색·라벨용, 호출 엣지 없음). 소속 파일의 영역을 따른다. (M4_4, M4_5)
   for (const info of infos) {
+    const domain = classifyDomain(info.file.relativePath, domainRules)
     for (const fn of info.functions) {
       builder.addNode({
         id: functionNodeId(info.file.relativePath, fn.name),
@@ -49,7 +52,7 @@ export function buildFileGraph(
         name: fn.name,
         path: info.file.relativePath,
         language: info.file.language,
-        domain: null,
+        domain,
         external: false,
         line: fn.line
       })

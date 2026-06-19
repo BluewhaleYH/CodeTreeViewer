@@ -4,6 +4,7 @@ import { scanProject, type ScanOptions, type ScanResult } from './scanner'
 import type { SourceParser } from './parser'
 import { extractFileInfo, type FileInfo } from './extract'
 import { buildFileGraph } from './dependency-graph'
+import type { DomainRule } from './domain'
 import { AnalysisCache, ANALYZER_VERSION, fileFingerprint } from './cache'
 import type { AnalysisProgress, AnalysisSummary, SourceLanguage } from '../../shared/analysis'
 import type { CodeGraph } from '../../shared/graph'
@@ -13,6 +14,8 @@ export interface RunAnalysisOptions {
   scan?: ScanOptions
   /** 비차단을 위해 N개 파일마다 이벤트 루프에 양보. */
   yieldEvery?: number
+  /** 영역(Domain) 사용자 매핑 규칙. 미지정 시 범용 기본 프리셋. (D10) */
+  domainRules?: DomainRule[]
 }
 
 export interface AnalysisRunResult {
@@ -69,10 +72,15 @@ async function analyzeScanned(
     }
   }
 
-  const graph = buildFileGraph(files, infos)
+  const graph = buildFileGraph(files, infos, options.domainRules)
 
   onProgress?.({ phase: 'parsing', processed: total, total })
   onProgress?.({ phase: 'done', processed: total, total })
+
+  const domains = new Set<string>()
+  for (const node of graph.nodes) {
+    if (node.kind === 'file' && node.domain) domains.add(node.domain)
+  }
 
   const summary: AnalysisSummary = {
     root: scanResult.root,
@@ -84,6 +92,7 @@ async function analyzeScanned(
     nodeCount: graph.nodes.length,
     functionNodeCount: graph.nodes.filter((n) => n.kind === 'function').length,
     externalNodeCount: graph.nodes.filter((n) => n.external).length,
+    domainCount: domains.size,
     edgeCount: graph.edges.length,
     failures
   }
