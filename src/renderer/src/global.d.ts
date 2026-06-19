@@ -1,4 +1,4 @@
-import type { AnalysisProgress, AnalysisSummary } from '../../shared/analysis'
+import type { AnalysisProgress, AnalysisResult } from '../../shared/analysis'
 
 export interface ProjectSelection {
   path: string
@@ -17,7 +17,7 @@ declare global {
       runAnalysis: (
         projectPath: string,
         onProgress: (progress: AnalysisProgress) => void
-      ) => Promise<AnalysisSummary>
+      ) => Promise<AnalysisResult>
     }
   }
 }

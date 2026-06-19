@@ -3,6 +3,8 @@
  * 트리 등 비직렬화 객체는 여기에 두지 않는다.
  */
 
+import type { CodeGraph } from './graph'
+
 export type SourceLanguage = 'java' | 'kotlin'
 
 export interface AnalysisProgress {
@@ -34,4 +36,10 @@ export interface AnalysisSummary {
   /** 그래프 엣지 수(파일 의존성 등). (02 §4) */
   edgeCount: number
   failures: AnalysisFailure[]
+}
+
+/** 분석 결과(IPC로 렌더러에 전달). 요약 + 그래프 본체. */
+export interface AnalysisResult {
+  summary: AnalysisSummary
+  graph: CodeGraph
 }

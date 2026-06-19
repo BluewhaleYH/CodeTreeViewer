@@ -103,8 +103,54 @@ body {
 
 /* 작업 영역 */
 .workspace {
+  position: relative;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
+}
+
+/* 그래프 캔버스(Cytoscape 호스트) */
+.ws-graph {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+
+/* 오버레이(그래프 위) */
+.ws-overlay--center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.ws-overlay--corner {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.stats-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(37, 37, 38, 0.85);
+  pointer-events: auto;
+  max-width: 70%;
+}
+
+.stats-panel__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.stats-panel__line {
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .content {

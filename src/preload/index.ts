@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AnalysisProgress, AnalysisSummary } from '../shared/analysis'
+import type { AnalysisProgress, AnalysisResult } from '../shared/analysis'
 
 export interface ProjectSelection {
   path: string
@@ -41,11 +41,11 @@ const api = {
     }
   },
 
-  /** 프로젝트 분석을 실행한다. 진행률은 onProgress로 통지된다. (02 §3, §8) */
+  /** 프로젝트 분석을 실행한다. 진행률은 onProgress로 통지된다. 결과는 요약+그래프. (02 §3, §8) */
   runAnalysis: (
     projectPath: string,
     onProgress: (progress: AnalysisProgress) => void
-  ): Promise<AnalysisSummary> => {
+  ): Promise<AnalysisResult> => {
     analysisCounter += 1
     const id = `analysis-${analysisCounter}`
     const listener = (

@@ -157,6 +157,7 @@ describe('TabStore — 분석 상태 (M3_3)', () => {
     edgeCount: 2,
     failures: []
   }
+  const graph = { nodes: [], edges: [] }
 
   it('새 탭의 분석 상태는 idle이다', () => {
     const store = new TabStore()
@@ -171,9 +172,10 @@ describe('TabStore — 분석 상태 (M3_3)', () => {
     expect(tab.analysis.status).toBe('running')
     store.setAnalysisProgress(tab.id, { phase: 'parsing', processed: 1, total: 3 })
     expect(tab.analysis.progress?.processed).toBe(1)
-    store.finishAnalysis(tab.id, summary)
+    store.finishAnalysis(tab.id, summary, graph)
     expect(tab.analysis.status).toBe('done')
     expect(tab.analysis.summary?.fileCount).toBe(3)
+    expect(tab.analysis.graph).toBe(graph)
     expect(tab.analysis.progress).toBeNull()
   })
 
@@ -197,7 +199,7 @@ describe('TabStore — 분석 상태 (M3_3)', () => {
     const store = new TabStore()
     const a = store.openProject('/a', 'a')
     const b = store.openProject('/b', 'b')
-    store.finishAnalysis(a.id, summary)
+    store.finishAnalysis(a.id, summary, graph)
     store.startAnalysis(b.id)
     expect(a.analysis.status).toBe('done')
     expect(b.analysis.status).toBe('running')
