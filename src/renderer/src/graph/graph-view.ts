@@ -121,12 +121,44 @@ export class GraphView {
     this.draw(graph, tab.view.mode, tab.view.selectedNodeId)
   }
 
-  /** store의 선택을 캔버스에 맞춘다(통지 없이). */
+  /**
+   * store의 선택을 캔버스에 맞춘다(통지 없이). 검색 등 외부 선택 시 사용.
+   * 숨은 노드면 드러내고(reveal), 선택 강조 후 화면 중앙으로 이동한다. (03 §10, M7_4)
+   */
   private syncSelection(selectedNodeId: string | null): void {
+    if (this.selectedId === selectedNodeId) return
+    if (selectedNodeId && !this.displayed.has(selectedNodeId)) {
+      this.revealNode(selectedNodeId)
+    }
     const target = selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : null
-    if (target === this.selectedId) return
     this.selectedId = target
     this.applySelectedStyle()
+    if (target) this.centerOn(target)
+  }
+
+  /** 단일 노드(파일/외부)를 드러낸다(검색 포커스 등). */
+  private revealNode(id: string): void {
+    const cy = this.cy
+    if (!cy || this.displayed.has(id)) return
+    const node = this.fullGraph.nodes.find((n) => n.id === id && n.kind !== 'function')
+    if (!node) return
+    this.displayed.add(id)
+    const newEdges = this.fullGraph.edges.filter(
+      (e) =>
+        this.displayed.has(e.from) &&
+        this.displayed.has(e.to) &&
+        cy.getElementById(e.id).length === 0
+    )
+    cy.add(toCytoscapeElements({ nodes: [node], edges: newEdges }, this.domainColors))
+    cy.layout(layoutFor(this.mode)).run()
+    this.markExpandable()
+  }
+
+  private centerOn(id: string): void {
+    const cy = this.cy
+    if (!cy) return
+    const node = cy.getElementById(id)
+    if (node.length > 0) cy.animate({ center: { eles: node } }, { duration: 200 })
   }
 
   private draw(graph: CodeGraph, mode: ViewMode, selectedNodeId: string | null): void {

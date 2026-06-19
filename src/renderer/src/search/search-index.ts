@@ -1,4 +1,4 @@
-import type { CodeGraph } from '../../../shared/graph'
+import { fileNodeId, type CodeGraph } from '../../../shared/graph'
 import type { SourceLanguage } from '../../../shared/analysis'
 
 /**
@@ -17,6 +17,14 @@ export interface SearchEntry {
   language: SourceLanguage | null
   /** 함수 정의 라인(파일 노드는 null). */
   line: number | null
+}
+
+/**
+ * 결과 선택 시 그래프에서 포커스할 노드 id. (03 §10, M7_4)
+ * 함수는 렌더 대상이 아니므로 소속 파일 노드를 포커스한다.
+ */
+export function focusTargetId(entry: SearchEntry): string {
+  return entry.kind === 'function' ? fileNodeId(entry.path) : entry.id
 }
 
 /**
