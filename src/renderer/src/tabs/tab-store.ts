@@ -62,7 +62,12 @@ export interface TabState {
 export interface TabCodeView {
   file: string
   line: number
+  /** 디스크에서 마지막으로 읽거나 저장한 내용(원본/저장본). 편집 중 내용은 에디터가 보유. */
   content: string
+  /** 외부 변경 충돌 감지용 mtime. 디스크에 없으면 null. (M12_2) */
+  baseMtime: number | null
+  /** 미저장 변경 여부. (M12_2) */
+  dirty: boolean
 }
 
 const DEFAULT_VIEW_MODE: ViewMode = 'graph'
@@ -202,11 +207,27 @@ export class TabStore {
     this.emit()
   }
 
-  /** 코드 뷰를 연다(역추적 후보 소스 표시). (04 §6, M11_5) */
+  /** 코드 편집기를 연다(소스 표시). (04 §6, M11_5) */
   setCodeView(id: string, codeView: TabCodeView | null): void {
     const tab = this.tabs.find((t) => t.id === id)
     if (!tab) return
     tab.codeView = codeView
+    this.emit()
+  }
+
+  /** 편집기 미저장 변경 여부를 갱신한다. (M12_2) */
+  setCodeDirty(id: string, dirty: boolean): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || !tab.codeView || tab.codeView.dirty === dirty) return
+    tab.codeView = { ...tab.codeView, dirty }
+    this.emit()
+  }
+
+  /** 저장 성공 후 원본/ mtime을 갱신하고 dirty를 해제한다. (M12_2) */
+  setCodeSaved(id: string, content: string, mtime: number): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || !tab.codeView) return
+    tab.codeView = { ...tab.codeView, content, baseMtime: mtime, dirty: false }
     this.emit()
   }
 

@@ -357,6 +357,11 @@ body {
   font-size: 12px;
 }
 
+.editorview__dirty {
+  color: #e2b341;
+  font-size: 12px;
+}
+
 .editorview__title {
   flex: 1;
   font-weight: 600;

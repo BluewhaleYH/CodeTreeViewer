@@ -3,6 +3,7 @@ import type { AnalysisProgress, AnalysisResult } from '../shared/analysis'
 import type { PersistedTab, SessionNotice, SessionState } from '../shared/session'
 import type { UpdateNotice } from '../shared/update'
 import type { LogOpenResult } from '../shared/log'
+import type { SourceReadResult, SourceSaveResult } from '../shared/source'
 
 export interface ProjectSelection {
   path: string
@@ -86,9 +87,18 @@ const api = {
   /** 로그 덤프 파일 열기 다이얼로그. 취소 시 null. (04 §2, M11_1) */
   openLogDialog: (): Promise<LogOpenResult | null> => ipcRenderer.invoke('log:open'),
 
-  /** 프로젝트 내 소스 파일 읽기(코드 뷰, 읽기 전용). 실패 시 null. (04 §6, M11_5) */
-  readSource: (projectPath: string, relativePath: string): Promise<string | null> =>
-    ipcRenderer.invoke('source:read', { projectPath, relativePath })
+  /** 프로젝트 내 소스 파일 읽기(content+mtime). 실패 시 null. (04 §6, M11_5·M12_2) */
+  readSource: (projectPath: string, relativePath: string): Promise<SourceReadResult | null> =>
+    ipcRenderer.invoke('source:read', { projectPath, relativePath }),
+
+  /** 소스 파일 저장(원자적 쓰기 + 외부 변경 충돌 감지). (06 §3, §6, M12_2) */
+  saveSource: (
+    projectPath: string,
+    relativePath: string,
+    content: string,
+    baseMtime: number | null
+  ): Promise<SourceSaveResult> =>
+    ipcRenderer.invoke('source:save', { projectPath, relativePath, content, baseMtime })
 }
 
 contextBridge.exposeInMainWorld('codetree', api)

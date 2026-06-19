@@ -1,14 +1,16 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { readFile } from 'node:fs/promises'
-import { basename, join, resolve } from 'node:path'
+import { basename, join } from 'node:path'
 import { SourceParser } from './analysis/parser'
 import { resolveParserConfig } from './analysis/wasm-paths'
 import { analyzeProject } from './analysis/runner'
 import { AnalysisCache } from './analysis/cache'
 import { getSessionManager } from './session/session-manager'
+import { readSourceFile, saveSourceFile } from './source'
 import type { AnalysisResult } from '../shared/analysis'
 import type { PersistedTab, SessionState } from '../shared/session'
 import type { LogOpenResult } from '../shared/log'
+import type { SourceReadResult, SourceSaveResult } from '../shared/source'
 
 export interface ProjectSelection {
   path: string
@@ -73,23 +75,21 @@ export function registerIpcHandlers(): void {
     }
   )
 
-  // 프로젝트 내 소스 파일 읽기(코드 뷰용, 읽기 전용). (04 §6, M11_5)
+  // 프로젝트 내 소스 파일 읽기(코드 뷰/편집기). (04 §6, M11_5; mtime 추가 M12_2)
   ipcMain.handle(
     'source:read',
-    async (
+    (_event, p: { projectPath: string; relativePath: string }): Promise<SourceReadResult | null> =>
+      readSourceFile(p.projectPath, p.relativePath)
+  )
+
+  // 소스 파일 저장(원자적 쓰기 + 외부 변경 충돌 감지). (06 §3, §6, M12_2)
+  ipcMain.handle(
+    'source:save',
+    (
       _event,
-      payload: { projectPath: string; relativePath: string }
-    ): Promise<string | null> => {
-      const target = join(payload.projectPath, payload.relativePath)
-      const base = resolve(payload.projectPath)
-      // 경로 이탈(../) 방지: 프로젝트 경계 안에 있어야 한다.
-      if (!resolve(target).startsWith(base)) return null
-      try {
-        return await readFile(target, 'utf8')
-      } catch {
-        return null
-      }
-    }
+      p: { projectPath: string; relativePath: string; content: string; baseMtime: number | null }
+    ): Promise<SourceSaveResult> =>
+      saveSourceFile(p.projectPath, p.relativePath, p.content, p.baseMtime)
   )
 
   // 로그 덤프 파일 열기. (04 §2, M11_1) 대용량 스트리밍은 M11_2.
