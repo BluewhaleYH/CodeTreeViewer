@@ -1,24 +1,29 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { SessionManager } from './session/session-manager'
+import { chooseBounds, type Rect } from './session/window-bounds'
 
-// 너무 좁아지면 그래프/패널 레이아웃이 깨지므로 최소 크기를 둔다. (03 §2)
 const MIN_WIDTH = 940
 const MIN_HEIGHT = 600
-
 const DEFAULT_WIDTH = 1280
 const DEFAULT_HEIGHT = 800
 
 /**
  * 메인 윈도우를 생성한다. (01 §3)
- * - 최소화/최대화/종료는 기본 프레임(frame: true)이 OS 창 컨트롤로 제공한다.
- * - 보안 기본값(01 §2): contextIsolation on, nodeIntegration off, sandbox on, preload 경유.
- * - 창 크기·위치·최대화 상태의 저장/복원과 멀티모니터 보정은 세션(M8, 01 §5)에서 다룬다.
+ * 세션의 창 상태(크기/위치/최대화)를 복원하고, 화면 밖이면 기본 크기로 보정한다(멀티모니터). (01 §5)
+ * 변경 시 세션에 저장(디바운스). 보안 기본값(01 §2) 유지.
  */
-export function createMainWindow(): BrowserWindow {
-  const window = new BrowserWindow({
+export function createMainWindow(session: SessionManager): BrowserWindow {
+  const restored = session.get().window
+  const areas: Rect[] = screen.getAllDisplays().map((d) => d.workArea)
+  const bounds = chooseBounds(restored?.bounds ?? null, areas, {
     width: DEFAULT_WIDTH,
-    height: DEFAULT_HEIGHT,
+    height: DEFAULT_HEIGHT
+  })
+
+  const window = new BrowserWindow({
+    ...bounds,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     show: false,
@@ -32,15 +37,23 @@ export function createMainWindow(): BrowserWindow {
     }
   })
 
+  if (restored?.maximized) window.maximize()
+
+  const persist = (): void => {
+    session.setWindow({ bounds: window.getNormalBounds(), maximized: window.isMaximized() })
+  }
+  window.on('resize', persist)
+  window.on('move', persist)
+  window.on('maximize', persist)
+  window.on('unmaximize', persist)
+
   window.on('ready-to-show', () => {
     window.show()
-    // UI 검수용 스크린샷 캡처 모드 (CLAUDE.md §6).
     if (process.env['CAPTURE_SCREENSHOT']) {
       void captureAndExit(window)
     }
   })
 
-  // 개발 모드에서는 electron-vite가 주입하는 렌더러 URL(HMR)을 로드한다.
   const rendererUrl = process.env['ELECTRON_RENDERER_URL']
   if (rendererUrl) {
     void window.loadURL(rendererUrl)

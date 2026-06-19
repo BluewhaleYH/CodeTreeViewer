@@ -1,5 +1,5 @@
 import type { AnalysisProgress, AnalysisResult } from '../../shared/analysis'
-import type { SessionState } from '../../shared/session'
+import type { PersistedTab, SessionState } from '../../shared/session'
 
 export interface ProjectSelection {
   path: string
@@ -20,7 +20,7 @@ declare global {
         onProgress: (progress: AnalysisProgress) => void
       ) => Promise<AnalysisResult>
       loadSession: () => Promise<SessionState>
-      saveSession: (state: SessionState) => Promise<void>
+      saveTabs: (tabs: PersistedTab[], activeIndex: number) => Promise<void>
     }
   }
 }
