@@ -17,6 +17,8 @@ export interface TabContentActions {
   openCandidate: (site: LogSite) => void
   /** 노드의 소스를 편집기로 연다. (06 §2, M12_1) */
   openSource: (file: string, line: number) => void
+  /** 영향 범위 표시를 지운다. (06 §5, M12_4) */
+  clearImpact: () => void
 }
 
 /**
@@ -59,6 +61,10 @@ export function renderOverlay(
     // 로그→코드 역추적 후보 패널(선택 라인 있을 때). (04 §5, M11_4)
     if (active.log && active.log.selectedLine !== null) {
       host.appendChild(renderCandidatePanel(active, active.log.selectedLine, actions))
+    }
+    // 재분석 영향 범위 패널. (06 §5, M12_4)
+    if (active.impact) {
+      host.appendChild(renderImpactPanel(active.impact, actions))
     }
     return
   }
@@ -236,6 +242,34 @@ function renderCandidatePanel(
     list.appendChild(li)
   }
   panel.appendChild(list)
+  return panel
+}
+
+/** 재분석 영향 범위 패널(추가/삭제/엣지 요약 + 강조 안내 + 지우기). (06 §5, M12_4) */
+function renderImpactPanel(impact: TabState['impact'], actions: TabContentActions): HTMLElement {
+  const panel = document.createElement('div')
+  panel.className = 'info-panel impact-panel'
+  const s = impact!.summary
+
+  const title = document.createElement('div')
+  title.className = 'info-panel__title'
+  title.textContent = '재분석 영향 범위'
+
+  const line = document.createElement('div')
+  line.className = 'impact-panel__sum muted'
+  line.textContent = `노드 +${s.addedNodes} · -${s.removedNodes} · 엣지 +${s.addedEdges} · -${s.removedEdges}`
+
+  const hint = document.createElement('div')
+  hint.className = 'impact-panel__hint muted'
+  hint.textContent =
+    impact!.highlight.length > 0 ? '추가·변경 노드를 초록 테두리로 표시' : '그래프 구조 변화 없음'
+
+  const clear = document.createElement('button')
+  clear.className = 'impact-panel__clear'
+  clear.textContent = '지우기'
+  clear.addEventListener('click', () => actions.clearImpact())
+
+  panel.append(title, line, hint, clear)
   return panel
 }
 

@@ -56,6 +56,15 @@ export interface TabState {
   log: TabLogState | null
   /** 코드 뷰(역추적 후보 소스 표시). null이면 코드 뷰 비활성. (04 §6, M11_5) */
   codeView: TabCodeView | null
+  /** 직전 재분석 영향 범위. null이면 표시 안 함. (06 §5, M12_4) */
+  impact: TabImpact | null
+}
+
+/** 재분석 영향 범위(추가/변경 노드 강조 + 요약). (06 §5, M12_4) */
+export interface TabImpact {
+  /** 그래프에서 강조할 노드 id(추가 + 변경). */
+  highlight: string[]
+  summary: { addedNodes: number; removedNodes: number; addedEdges: number; removedEdges: number }
 }
 
 /** 코드 편집기 대상(소스 + 이동 라인). (04 §6, M11_5; Monaco 편집 M12) */
@@ -91,7 +100,8 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null, backtrace: null },
     analysis: createAnalysisState(),
     log: null,
-    codeView: null
+    codeView: null,
+    impact: null
   }
 }
 
@@ -212,6 +222,14 @@ export class TabStore {
     const tab = this.tabs.find((t) => t.id === id)
     if (!tab) return
     tab.codeView = codeView
+    this.emit()
+  }
+
+  /** 재분석 영향 범위를 설정/해제한다. (06 §5, M12_4) */
+  setImpact(id: string, impact: TabImpact | null): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab) return
+    tab.impact = impact
     this.emit()
   }
 
