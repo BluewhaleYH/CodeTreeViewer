@@ -1,5 +1,6 @@
 import type { AnalysisProgress, AnalysisResult } from '../../shared/analysis'
 import type { PersistedTab, SessionNotice, SessionState } from '../../shared/session'
+import type { UpdateNotice } from '../../shared/update'
 
 export interface ProjectSelection {
   path: string
@@ -22,6 +23,7 @@ declare global {
       loadSession: () => Promise<SessionState>
       saveTabs: (tabs: PersistedTab[], activeIndex: number) => Promise<void>
       onSessionNotice: (handler: (notice: SessionNotice) => void) => () => void
+      onUpdateNotice: (handler: (notice: UpdateNotice) => void) => () => void
     }
   }
 }

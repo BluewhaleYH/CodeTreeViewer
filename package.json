@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "cytoscape": "^3.34.0",
+    "electron-updater": "^6.8.9",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.20.8"
   },

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { AnalysisProgress, AnalysisResult } from '../shared/analysis'
 import type { PersistedTab, SessionNotice, SessionState } from '../shared/session'
+import type { UpdateNotice } from '../shared/update'
 
 export interface ProjectSelection {
   path: string
@@ -71,6 +72,13 @@ const api = {
     const listener = (_event: IpcRendererEvent, notice: SessionNotice): void => handler(notice)
     ipcRenderer.on('session:notice', listener)
     return () => ipcRenderer.removeListener('session:notice', listener)
+  },
+
+  /** 자동 업데이트 비차단 알림(다운로드 완료 등) 구독. 해제 함수를 반환한다. (DEPLOY.md §4) */
+  onUpdateNotice: (handler: (notice: UpdateNotice) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, notice: UpdateNotice): void => handler(notice)
+    ipcRenderer.on('update:notice', listener)
+    return () => ipcRenderer.removeListener('update:notice', listener)
   }
 }
 

@@ -3,6 +3,7 @@ import { createMainWindow } from './window'
 import { buildAppMenu } from './menu'
 import { registerIpcHandlers } from './ipc'
 import { getSessionManager } from './session/session-manager'
+import { initAutoUpdate } from './updater'
 
 // 단일 인스턴스 보장 (01 §7).
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
@@ -21,6 +22,7 @@ if (!gotSingleInstanceLock) {
     registerIpcHandlers()
     buildAppMenu()
     const win = createMainWindow(session)
+    initAutoUpdate(win) // 패키징 배포본에서만 자동 업데이트 확인. (DEPLOY.md §4)
 
     // 세션 손상 감지 시 비차단 알림을 렌더러에 통지한다. (01 §10)
     if (session.wasCorrupted()) {
