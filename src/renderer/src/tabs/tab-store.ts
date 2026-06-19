@@ -4,6 +4,7 @@
  */
 
 import type { AnalysisProgress, AnalysisSummary } from '../../../shared/analysis'
+import type { CodeGraph } from '../../../shared/graph'
 
 /** 시각화 뷰 모드. 토글 UI는 M5/M6에서 연결한다. (03 §5.2) */
 export type ViewMode = 'graph' | 'tree'
@@ -20,6 +21,7 @@ export interface TabAnalysisState {
   status: AnalysisStatus
   progress: AnalysisProgress | null
   summary: AnalysisSummary | null
+  graph: CodeGraph | null
   error: string | null
 }
 
@@ -36,7 +38,7 @@ export interface TabState {
 const DEFAULT_VIEW_MODE: ViewMode = 'graph'
 
 function createAnalysisState(): TabAnalysisState {
-  return { status: 'idle', progress: null, summary: null, error: null }
+  return { status: 'idle', progress: null, summary: null, graph: null, error: null }
 }
 
 let idCounter = 0
@@ -128,7 +130,7 @@ export class TabStore {
   }
 
   startAnalysis(id: string): void {
-    this.patchAnalysis(id, { status: 'running', progress: null, summary: null, error: null })
+    this.patchAnalysis(id, { status: 'running', progress: null, summary: null, graph: null, error: null })
   }
 
   setAnalysisProgress(id: string, progress: AnalysisProgress): void {
@@ -138,12 +140,12 @@ export class TabStore {
     this.emit()
   }
 
-  finishAnalysis(id: string, summary: AnalysisSummary): void {
-    this.patchAnalysis(id, { status: 'done', progress: null, summary, error: null })
+  finishAnalysis(id: string, summary: AnalysisSummary, graph: CodeGraph): void {
+    this.patchAnalysis(id, { status: 'done', progress: null, summary, graph, error: null })
   }
 
   failAnalysis(id: string, error: string): void {
-    this.patchAnalysis(id, { status: 'error', progress: null, summary: null, error })
+    this.patchAnalysis(id, { status: 'error', progress: null, summary: null, graph: null, error })
   }
 
   /** 탭을 닫는다. 활성 탭을 닫으면 인접 탭(다음 → 이전)을 활성화한다. (M2_2) */

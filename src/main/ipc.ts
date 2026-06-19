@@ -4,7 +4,7 @@ import { SourceParser } from './analysis/parser'
 import { resolveParserConfig } from './analysis/wasm-paths'
 import { analyzeProject } from './analysis/runner'
 import { AnalysisCache } from './analysis/cache'
-import type { AnalysisSummary } from '../shared/analysis'
+import type { AnalysisResult } from '../shared/analysis'
 
 export interface ProjectSelection {
   path: string
@@ -52,7 +52,7 @@ export function registerIpcHandlers(): void {
     return { path, name: basename(path) }
   })
 
-  ipcMain.handle('analysis:run', async (event, payload: AnalyzePayload): Promise<AnalysisSummary> => {
+  ipcMain.handle('analysis:run', async (event, payload: AnalyzePayload): Promise<AnalysisResult> => {
     const parser = await getParser()
     const result = await analyzeProject(payload.projectPath, parser, getCache(), {
       onProgress: (progress) => {
@@ -61,6 +61,6 @@ export function registerIpcHandlers(): void {
         }
       }
     })
-    return result.summary
+    return { summary: result.summary, graph: result.graph }
   })
 }
