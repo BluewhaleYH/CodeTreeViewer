@@ -3,8 +3,10 @@ import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { SourceParser } from './analysis/parser'
 import { resolveParserConfig } from './analysis/wasm-paths'
-import { analyzeProject } from './analysis/runner'
-import { AnalysisCache } from './analysis/cache'
+import { analyzeProject, reanalyzeFile, runAnalysis } from './analysis/runner'
+import type { FileInfo } from './analysis/extract'
+import type { ScannedFile } from './analysis/scanner'
+import { AnalysisCache, ANALYZER_VERSION, fileFingerprint } from './analysis/cache'
 import { getSessionManager } from './session/session-manager'
 import { readSourceFile, saveSourceFile } from './source'
 import type { AnalysisResult } from '../shared/analysis'
@@ -32,6 +34,12 @@ function getParser(): Promise<SourceParser> {
   }
   return parserPromise
 }
+
+// 증분 재분석용 인메모리 파싱 산출물(프로젝트별, 세션 한정). (M12_3)
+const infosCache = new Map<
+  string,
+  { files: ScannedFile[]; infos: FileInfo[]; summary: import('../shared/analysis').AnalysisSummary }
+>()
 
 // 분석 캐시(세션과 분리, userData). (02 §7.2, 01 §6)
 let analysisCache: AnalysisCache | null = null
@@ -70,6 +78,41 @@ export function registerIpcHandlers(): void {
             event.sender.send('analysis:progress', { id: payload.id, progress })
           }
         }
+      })
+      return { summary: result.summary, graph: result.graph, logSites: result.logSites }
+    }
+  )
+
+  // 저장 시 증분 재분석: 변경 파일만 재파싱(가능하면) 후 그래프/검색 갱신. (06 §4, M12_3)
+  ipcMain.handle(
+    'analysis:reanalyze',
+    async (
+      _event,
+      payload: { projectPath: string; relativePath: string }
+    ): Promise<AnalysisResult> => {
+      const parser = await getParser()
+      const cached = infosCache.get(payload.projectPath)
+      const file = cached?.files.find((f) => f.relativePath === payload.relativePath)
+
+      let result
+      if (cached && file) {
+        result = await reanalyzeFile(file, parser, cached) // 변경 파일만 재파싱
+      } else {
+        result = await runAnalysis(payload.projectPath, parser) // 베이스 없음 → 전체 1회
+      }
+      infosCache.set(payload.projectPath, {
+        files: result.files,
+        infos: result.infos,
+        summary: result.summary
+      })
+      // 디스크 캐시도 최신 상태로 갱신(재기동 가속).
+      await getCache().set(payload.projectPath, {
+        root: payload.projectPath,
+        version: ANALYZER_VERSION,
+        fingerprint: await fileFingerprint(result.files),
+        summary: result.summary,
+        graph: result.graph,
+        logSites: result.logSites
       })
       return { summary: result.summary, graph: result.graph, logSites: result.logSites }
     }

@@ -98,7 +98,11 @@ const api = {
     content: string,
     baseMtime: number | null
   ): Promise<SourceSaveResult> =>
-    ipcRenderer.invoke('source:save', { projectPath, relativePath, content, baseMtime })
+    ipcRenderer.invoke('source:save', { projectPath, relativePath, content, baseMtime }),
+
+  /** 저장 후 증분 재분석. 변경 파일 중심으로 그래프/요약/로그사이트 갱신. (06 §4, M12_3) */
+  reanalyze: (projectPath: string, relativePath: string): Promise<AnalysisResult> =>
+    ipcRenderer.invoke('analysis:reanalyze', { projectPath, relativePath })
 }
 
 contextBridge.exposeInMainWorld('codetree', api)

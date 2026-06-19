@@ -34,6 +34,7 @@ declare global {
         content: string,
         baseMtime: number | null
       ) => Promise<SourceSaveResult>
+      reanalyze: (projectPath: string, relativePath: string) => Promise<AnalysisResult>
     }
   }
 }

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { setImmediate } from 'node:timers/promises'
-import { scanProject, type ScanOptions, type ScanResult } from './scanner'
+import { scanProject, type ScanOptions, type ScanResult, type ScannedFile } from './scanner'
 import type { SourceParser } from './parser'
 import { extractFileInfo, type FileInfo } from './extract'
 import { buildFileGraph } from './dependency-graph'
@@ -25,6 +25,43 @@ export interface AnalysisRunResult {
   logSites: LogSite[]
 }
 
+/** 증분 재분석에 필요한 파싱 산출물까지 포함한 전체 결과(메인 내부 보관용, IPC 비전달). (M12_3) */
+export interface FullRunResult extends AnalysisRunResult {
+  infos: FileInfo[]
+  files: ScannedFile[]
+}
+
+/** 그래프에서 파생되는 요약 필드(증분 재분석 시 재계산 대상). */
+function graphSummaryFields(
+  graph: CodeGraph,
+  domains: Set<string>
+): Pick<
+  AnalysisSummary,
+  | 'nodeCount'
+  | 'functionNodeCount'
+  | 'externalNodeCount'
+  | 'domainCount'
+  | 'edgeCount'
+  | 'callEdgeCount'
+> {
+  return {
+    nodeCount: graph.nodes.length,
+    functionNodeCount: graph.nodes.filter((n) => n.kind === 'function').length,
+    externalNodeCount: graph.nodes.filter((n) => n.external).length,
+    domainCount: domains.size,
+    edgeCount: graph.edges.filter((e) => e.type === 'file-dependency').length,
+    callEdgeCount: graph.edges.filter((e) => e.type === 'function-call').length
+  }
+}
+
+function domainsOf(graph: CodeGraph): Set<string> {
+  const domains = new Set<string>()
+  for (const node of graph.nodes) {
+    if (node.kind === 'file' && node.domain) domains.add(node.domain)
+  }
+  return domains
+}
+
 export interface AnalyzeResult extends AnalysisRunResult {
   fromCache: boolean
 }
@@ -36,7 +73,7 @@ async function analyzeScanned(
   scanResult: ScanResult,
   parser: SourceParser,
   options: RunAnalysisOptions
-): Promise<AnalysisRunResult> {
+): Promise<FullRunResult> {
   const { onProgress, yieldEvery = 25 } = options
   const files = scanResult.files
   const total = files.length
@@ -86,11 +123,6 @@ async function analyzeScanned(
   onProgress?.({ phase: 'parsing', processed: total, total })
   onProgress?.({ phase: 'done', processed: total, total })
 
-  const domains = new Set<string>()
-  for (const node of graph.nodes) {
-    if (node.kind === 'file' && node.domain) domains.add(node.domain)
-  }
-
   const summary: AnalysisSummary = {
     root: scanResult.root,
     fileCount: total,
@@ -98,16 +130,47 @@ async function analyzeScanned(
     failureCount: failures.length,
     byLanguage,
     skippedDirCount: scanResult.skippedDirs.length,
-    nodeCount: graph.nodes.length,
-    functionNodeCount: graph.nodes.filter((n) => n.kind === 'function').length,
-    externalNodeCount: graph.nodes.filter((n) => n.external).length,
-    domainCount: domains.size,
-    edgeCount: graph.edges.filter((e) => e.type === 'file-dependency').length,
-    callEdgeCount: graph.edges.filter((e) => e.type === 'function-call').length,
+    ...graphSummaryFields(graph, domainsOf(graph)),
     failures
   }
   const logSites = infos.flatMap((i) => i.logSites)
-  return { summary, graph, logSites }
+  return { summary, graph, logSites, infos, files }
+}
+
+/**
+ * 단일 파일만 다시 파싱해 그래프/요약/로그사이트를 갱신한다(증분 재분석). (06 §4, M12_3)
+ * 이전 분석의 FileInfo[]를 재사용하고 변경 파일만 교체 → 미변경 파일은 다시 파싱하지 않는다.
+ */
+export async function reanalyzeFile(
+  file: ScannedFile,
+  parser: SourceParser,
+  prev: { files: ScannedFile[]; infos: FileInfo[]; summary: AnalysisSummary },
+  domainRules: DomainRule[] = []
+): Promise<FullRunResult> {
+  let newInfo: FileInfo
+  try {
+    const code = await readFile(file.absolutePath, 'utf8')
+    const tree = parser.parse(file.language, code)
+    newInfo = extractFileInfo(tree, file)
+  } catch {
+    newInfo = {
+      file,
+      packageName: null,
+      topLevelNames: [],
+      imports: [],
+      functions: [],
+      logSites: []
+    }
+  }
+
+  const infos = prev.infos.map((i) => (i.file.relativePath === file.relativePath ? newInfo : i))
+  const graph = buildFileGraph(prev.files, infos, domainRules)
+  const logSites = infos.flatMap((i) => i.logSites)
+  const summary: AnalysisSummary = {
+    ...prev.summary,
+    ...graphSummaryFields(graph, domainsOf(graph))
+  }
+  return { summary, graph, logSites, infos, files: prev.files }
 }
 
 /**
@@ -117,7 +180,7 @@ export async function runAnalysis(
   projectPath: string,
   parser: SourceParser,
   options: RunAnalysisOptions = {}
-): Promise<AnalysisRunResult> {
+): Promise<FullRunResult> {
   options.onProgress?.({ phase: 'scanning', processed: 0, total: 0 })
   const scanResult = await scanProject(projectPath, options.scan)
   return analyzeScanned(scanResult, parser, options)
