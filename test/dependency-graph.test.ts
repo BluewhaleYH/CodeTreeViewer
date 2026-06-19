@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { SourceParser } from '../src/main/analysis/parser'
 import { resolveParserConfig } from '../src/main/analysis/wasm-paths'
 import { runAnalysis } from '../src/main/analysis/runner'
-import { fileNodeId } from '../src/shared/graph'
+import { fileNodeId, functionNodeId } from '../src/shared/graph'
 
 let parser: SourceParser
 let root: string
@@ -147,6 +147,74 @@ describe('함수/메서드 정의 노드 (M4_4)', () => {
     const { graph } = await runAnalysis(root, parser)
     const fn = graph.nodes.find((n) => n.kind === 'function')
     expect(fn?.line).toBe(3)
+  })
+})
+
+describe('함수 호출 그래프 (M10_1)', () => {
+  it('같은 파일 내 호출을 function-call 엣지로 만든다(부모=호출하는 함수)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-call-'))
+    await write(
+      'a/A.java',
+      'package a;\nclass A {\n  void caller() { callee(); }\n  void callee() {}\n}'
+    )
+
+    const { graph, summary } = await runAnalysis(root, parser)
+    const call = graph.edges.find((e) => e.type === 'function-call')
+    expect(call?.from).toBe(functionNodeId('a/A.java', 'caller'))
+    expect(call?.to).toBe(functionNodeId('a/A.java', 'callee'))
+    expect(summary.callEdgeCount).toBe(1)
+    expect(summary.edgeCount).toBe(0) // 파일 의존성 엣지는 없음
+  })
+
+  it('프로젝트 전역에서 이름이 유일하면 다른 파일 함수로 해석한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-call-'))
+    await write('a/A.java', 'package a;\nclass A {\n  void caller() { target(); }\n}')
+    await write('b/B.java', 'package b;\nclass B {\n  void target() {}\n}')
+
+    const { graph } = await runAnalysis(root, parser)
+    const call = graph.edges.find((e) => e.type === 'function-call')
+    expect(call?.from).toBe(functionNodeId('a/A.java', 'caller'))
+    expect(call?.to).toBe(functionNodeId('b/B.java', 'target'))
+  })
+
+  it('동명이인이 여러 곳이면 모호 → 엣지를 만들지 않는다(오탐 방지)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-call-'))
+    await write('a/A.java', 'package a;\nclass A {\n  void caller() { dup(); }\n}')
+    await write('b/B.java', 'package b;\nclass B {\n  void dup() {}\n}')
+    await write('c/C.java', 'package c;\nclass C {\n  void dup() {}\n}')
+
+    const { summary } = await runAnalysis(root, parser)
+    expect(summary.callEdgeCount).toBe(0)
+  })
+
+  it('재귀(자기 호출)는 엣지를 만들지 않는다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-call-'))
+    await write('a/A.java', 'package a;\nclass A {\n  int f(int n) { return f(n - 1); }\n}')
+
+    const { summary } = await runAnalysis(root, parser)
+    expect(summary.callEdgeCount).toBe(0)
+  })
+
+  it('미해결 호출(외부/표준 라이브러리)은 엣지를 만들지 않는다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-call-'))
+    await write(
+      'a/A.java',
+      'package a;\nclass A {\n  void run() { System.out.println("x"); helper(); }\n}'
+    )
+
+    const { summary } = await runAnalysis(root, parser)
+    expect(summary.callEdgeCount).toBe(0) // println·helper 모두 미해결
+  })
+
+  it('Kotlin 호출도 해석한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-call-'))
+    await write('a/Main.kt', 'package a\nfun caller() { callee() }\nfun callee() {}')
+
+    const { graph, summary } = await runAnalysis(root, parser)
+    expect(summary.callEdgeCount).toBe(1)
+    const call = graph.edges.find((e) => e.type === 'function-call')
+    expect(call?.from).toBe(functionNodeId('a/Main.kt', 'caller'))
+    expect(call?.to).toBe(functionNodeId('a/Main.kt', 'callee'))
   })
 })
 

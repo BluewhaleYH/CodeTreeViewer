@@ -78,6 +78,37 @@ export function buildFileGraph(
     }
   }
 
+  // 2-1) 함수 호출 해석용 인덱스: 이름 → 함수 노드 id(전역/파일별). (M10_1)
+  const fnGlobalByName = new Map<string, string[]>()
+  const fnFileByName = new Map<string, Map<string, string[]>>()
+  for (const info of infos) {
+    const rel = info.file.relativePath
+    const perFile = new Map<string, string[]>()
+    fnFileByName.set(rel, perFile)
+    for (const fn of info.functions) {
+      const id = functionNodeId(rel, fn.name)
+      pushTo(fnGlobalByName, fn.name, id)
+      pushTo(perFile, fn.name, id)
+    }
+  }
+
+  // 2-2) 보수적 호출 해석 → function-call 엣지(부모=호출하는 함수, 자식=호출되는 함수). (02 §6, D: 오탐 최소)
+  //  - 같은 파일에 동일명 정의가 정확히 1개면 그 함수로.
+  //  - 같은 파일에 여러 개(오버로드)면 모호 → 생략.
+  //  - 파일에 없으면 프로젝트 전체에서 동일명이 유일할 때만.
+  //  - 자기 호출(재귀)은 GraphBuilder가 자기참조로 무시.
+  for (const info of infos) {
+    const rel = info.file.relativePath
+    const perFile = fnFileByName.get(rel)
+    for (const fn of info.functions) {
+      const callerId = functionNodeId(rel, fn.name)
+      for (const call of fn.calls) {
+        const calleeId = resolveCall(call.name, perFile, fnGlobalByName)
+        if (calleeId) builder.addEdge('function-call', callerId, calleeId, call.line)
+      }
+    }
+  }
+
   // 3) import 해석 → 내부 엣지 또는 외부 노드.
   for (const info of infos) {
     const fromId = fileNodeId(info.file.relativePath)
@@ -110,6 +141,27 @@ export function buildFileGraph(
   }
 
   return builder.build()
+}
+
+function pushTo(map: Map<string, string[]>, key: string, value: string): void {
+  const arr = map.get(key)
+  if (arr) arr.push(value)
+  else map.set(key, [value])
+}
+
+/**
+ * 보수적 호출 해석. 같은 파일 우선(유일할 때), 없으면 프로젝트 전역 유일일 때만 해석. (02 §6)
+ * 모호(동명이인 다수)하면 null → 엣지 생성 안 함(오탐 방지).
+ */
+function resolveCall(
+  name: string,
+  perFile: Map<string, string[]> | undefined,
+  globalByName: Map<string, string[]>
+): string | null {
+  const inFile = perFile?.get(name)
+  if (inFile) return inFile.length === 1 ? inFile[0] : null
+  const global = globalByName.get(name)
+  return global && global.length === 1 ? global[0] : null
 }
 
 function resolveImport(

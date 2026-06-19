@@ -155,6 +155,7 @@ describe('TabStore — 분석 상태 (M3_3)', () => {
     externalNodeCount: 0,
     domainCount: 1,
     edgeCount: 2,
+    callEdgeCount: 0,
     failures: []
   }
   const graph = { nodes: [], edges: [] }

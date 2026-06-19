@@ -33,8 +33,10 @@ export interface AnalysisSummary {
   externalNodeCount: number
   /** 구분된 영역(Domain) 수(파일 노드 기준). (02 §5) */
   domainCount: number
-  /** 그래프 엣지 수(파일 의존성 등). (02 §4) */
+  /** 파일 의존성(file-dependency) 엣지 수. (02 §4) */
   edgeCount: number
+  /** 함수 호출(function-call) 엣지 수. (02 §6, M10_1) */
+  callEdgeCount: number
   failures: AnalysisFailure[]
 }
 

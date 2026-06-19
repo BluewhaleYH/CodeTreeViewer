@@ -74,6 +74,7 @@ describe('AnalysisCache get/set (M3_4)', () => {
         externalNodeCount: 0,
         domainCount: 0,
         edgeCount: 0,
+        callEdgeCount: 0,
         failures: []
       },
       graph: { nodes: [], edges: [] }

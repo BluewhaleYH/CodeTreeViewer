@@ -217,7 +217,7 @@ function renderStatsPanel(tab: TabState): HTMLElement {
   const fileNodeCount = summary.nodeCount - summary.functionNodeCount - summary.externalNodeCount
   const stat2 = document.createElement('div')
   stat2.className = 'stats-panel__line muted'
-  stat2.textContent = `노드 파일 ${fileNodeCount} · 함수 ${summary.functionNodeCount} · 외부 ${summary.externalNodeCount} · 엣지 ${summary.edgeCount} · 영역 ${summary.domainCount}`
+  stat2.textContent = `노드 파일 ${fileNodeCount} · 함수 ${summary.functionNodeCount} · 외부 ${summary.externalNodeCount} · 엣지 ${summary.edgeCount} · 호출 ${summary.callEdgeCount} · 영역 ${summary.domainCount}`
 
   panel.append(title, stat1, stat2)
 

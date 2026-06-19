@@ -13,9 +13,17 @@ export interface ImportRef {
   line: number
 }
 
+/** 함수 본문 내 호출 1건(호출 대상 단순명 + 위치). (02 §6, M10_1) */
+export interface CallRef {
+  name: string
+  line: number
+}
+
 export interface FunctionDef {
   name: string
   line: number
+  /** 이 함수 본문에서 호출하는 함수들(단순명). 해석/엣지화는 dependency-graph에서. (02 §6) */
+  calls: CallRef[]
 }
 
 export interface FileInfo {
@@ -32,6 +40,31 @@ type Node = Parser.SyntaxNode
 function stripLastSegment(fqn: string): string {
   const i = fqn.lastIndexOf('.')
   return i >= 0 ? fqn.slice(0, i) : fqn
+}
+
+/** node에서 위로 올라가며 주어진 타입의 가장 가까운 조상을 찾는다(호출→소속 함수 귀속용). */
+function nearestAncestorOfType(node: Node, type: string): Node | null {
+  let cur = node.parent
+  while (cur) {
+    if (cur.type === type) return cur
+    cur = cur.parent
+  }
+  return null
+}
+
+/**
+ * Kotlin call_expression의 호출 대상 단순명을 뽑는다.
+ * `foo()` → foo, `a.b.bar()` → bar(마지막 식별자). 그 외 형태는 null(보수적).
+ */
+function kotlinCalleeName(call: Node): string | null {
+  const callee = call.namedChildren[0]
+  if (!callee) return null
+  if (callee.type === 'simple_identifier') return callee.text
+  if (callee.type === 'navigation_expression') {
+    const ids = callee.descendantsOfType('simple_identifier')
+    return ids.length > 0 ? ids[ids.length - 1].text : null
+  }
+  return null
 }
 
 export function extractFileInfo(tree: Parser.Tree, file: ScannedFile): FileInfo {
@@ -83,11 +116,24 @@ function extractJava(root: Node, file: ScannedFile): FileInfo {
     }
   }
 
-  // 메서드 정의(중첩 클래스 포함). 호출 관계는 만들지 않는다(M10).
+  // 메서드 정의(중첩 클래스 포함) + 본문 내 호출. (M4_4, M10_1)
+  // web-tree-sitter는 노드 접근마다 새 래퍼를 만들어 객체 동일성이 보장되지 않으므로 node.id로 매핑한다.
   const functions: FunctionDef[] = []
+  const funcById = new Map<number, FunctionDef>()
   for (const method of root.descendantsOfType('method_declaration')) {
     const name = method.childForFieldName('name')?.text
-    if (name) functions.push({ name, line: method.startPosition.row + 1 })
+    if (!name) continue
+    const fn: FunctionDef = { name, line: method.startPosition.row + 1, calls: [] }
+    functions.push(fn)
+    funcById.set(method.id, fn)
+  }
+  // 호출은 가장 가까운 메서드 정의에 귀속(중첩/익명 클래스 메서드는 그 메서드로). (02 §6)
+  for (const call of root.descendantsOfType('method_invocation')) {
+    const name = call.childForFieldName('name')?.text
+    if (!name) continue
+    const owner = nearestAncestorOfType(call, 'method_declaration')
+    const fn = owner ? funcById.get(owner.id) : undefined
+    if (fn) fn.calls.push({ name, line: call.startPosition.row + 1 })
   }
 
   return { file, packageName, topLevelNames, imports, functions }
@@ -126,11 +172,22 @@ function extractKotlin(root: Node, file: ScannedFile): FileInfo {
     }
   }
 
-  // 함수 정의(최상위 + 멤버). 호출 관계는 만들지 않는다(M10).
+  // 함수 정의(최상위 + 멤버) + 본문 내 호출. node.id로 매핑(래퍼 동일성 비보장). (M4_4, M10_1)
   const functions: FunctionDef[] = []
-  for (const fn of root.descendantsOfType('function_declaration')) {
-    const name = fn.namedChildren.find((n) => n.type === 'simple_identifier')?.text
-    if (name) functions.push({ name, line: fn.startPosition.row + 1 })
+  const funcById = new Map<number, FunctionDef>()
+  for (const decl of root.descendantsOfType('function_declaration')) {
+    const name = decl.namedChildren.find((n) => n.type === 'simple_identifier')?.text
+    if (!name) continue
+    const fn: FunctionDef = { name, line: decl.startPosition.row + 1, calls: [] }
+    functions.push(fn)
+    funcById.set(decl.id, fn)
+  }
+  for (const call of root.descendantsOfType('call_expression')) {
+    const name = kotlinCalleeName(call)
+    if (!name) continue
+    const owner = nearestAncestorOfType(call, 'function_declaration')
+    const fn = owner ? funcById.get(owner.id) : undefined
+    if (fn) fn.calls.push({ name, line: call.startPosition.row + 1 })
   }
 
   return { file, packageName, topLevelNames, imports, functions }
