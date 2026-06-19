@@ -4,6 +4,7 @@ import { renderTabBar } from './tabs/tab-bar'
 import { renderOverlay } from './tabs/tab-content'
 import { GraphView } from './graph/graph-view'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
+import { fileNodeId } from '../../shared/graph'
 
 const root = document.getElementById('app')
 
@@ -24,7 +25,10 @@ if (root) {
 
   if (tabbar && wsGraph && wsOverlay) {
     const store = new TabStore()
-    const graphView = new GraphView(wsGraph)
+    const graphView = new GraphView(wsGraph, (nodeId) => {
+      const activeId = store.getActiveId()
+      if (activeId) store.setSelectedNode(activeId, nodeId)
+    })
 
     const render = (): void => {
       renderTabBar(tabbar, store)
@@ -68,6 +72,8 @@ if (root) {
     if (window.codetree.captureMode) {
       const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
       store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
+      // 선택 상태 시연.
+      store.setSelectedNode(demo.id, fileNodeId('core/src/main/kotlin/Repository.kt'))
     }
 
     render()

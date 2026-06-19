@@ -11,7 +11,8 @@ export type ViewMode = 'graph' | 'tree'
 
 export interface TabViewState {
   mode: ViewMode
-  // 선택/포커스 노드 등은 시각화 단계(M5/M6)에서 확장한다.
+  /** 선택(포커스)된 노드 id. 뷰 모드 전환 시에도 유지된다. (03 §5.2, M6) */
+  selectedNodeId: string | null
 }
 
 export type AnalysisStatus = 'idle' | 'running' | 'done' | 'error'
@@ -53,7 +54,7 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     id: nextId(),
     projectPath,
     projectName,
-    view: { mode: DEFAULT_VIEW_MODE },
+    view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null },
     analysis: createAnalysisState()
   }
 }
@@ -112,11 +113,20 @@ export class TabStore {
     return tab
   }
 
-  /** 탭의 뷰 모드를 설정한다(탭별 독립). 토글 UI 연결은 M5/M6. (01 §4) */
+  /** 탭의 뷰 모드를 설정한다(탭별 독립). 선택 노드는 유지한다. (03 §5.2) */
   setViewMode(id: string, mode: ViewMode): void {
     const tab = this.tabs.find((t) => t.id === id)
     if (tab && tab.view.mode !== mode) {
       tab.view = { ...tab.view, mode }
+      this.emit()
+    }
+  }
+
+  /** 선택(포커스) 노드를 설정한다. (03 §5.3, M6) */
+  setSelectedNode(id: string, nodeId: string | null): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (tab && tab.view.selectedNodeId !== nodeId) {
+      tab.view = { ...tab.view, selectedNodeId: nodeId }
       this.emit()
     }
   }
