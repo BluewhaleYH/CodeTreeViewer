@@ -4,9 +4,9 @@ import { SourceParser } from './analysis/parser'
 import { resolveParserConfig } from './analysis/wasm-paths'
 import { analyzeProject } from './analysis/runner'
 import { AnalysisCache } from './analysis/cache'
-import { SessionStore } from './session/session-store'
+import { getSessionManager } from './session/session-manager'
 import type { AnalysisResult } from '../shared/analysis'
-import type { SessionState } from '../shared/session'
+import type { PersistedTab, SessionState } from '../shared/session'
 
 export interface ProjectSelection {
   path: string
@@ -34,15 +34,6 @@ function getCache(): AnalysisCache {
     analysisCache = new AnalysisCache(join(app.getPath('userData'), 'analysis-cache'))
   }
   return analysisCache
-}
-
-// 세션 저장소(userData, 분석 캐시와 분리). (01 §6)
-let sessionStore: SessionStore | null = null
-export function getSessionStore(): SessionStore {
-  if (!sessionStore) {
-    sessionStore = new SessionStore(app.getPath('userData'))
-  }
-  return sessionStore
 }
 
 /**
@@ -78,10 +69,12 @@ export function registerIpcHandlers(): void {
     }
   )
 
-  // 세션 로드/저장. (01 §5, §6)
-  ipcMain.handle('session:load', (): Promise<SessionState> => getSessionStore().load())
+  // 세션 로드/탭 저장. 창 상태는 main이 소유. (01 §5)
+  ipcMain.handle('session:load', (): SessionState => getSessionManager().get())
   ipcMain.handle(
-    'session:save',
-    (_event, state: SessionState): Promise<void> => getSessionStore().save(state)
+    'session:save-tabs',
+    (_event, payload: { tabs: PersistedTab[]; activeIndex: number }): void => {
+      getSessionManager().setTabs(payload.tabs, payload.activeIndex)
+    }
   )
 }
