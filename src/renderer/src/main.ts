@@ -5,6 +5,7 @@ import { renderOverlay } from './tabs/tab-content'
 import { GraphView } from './graph/graph-view'
 import { SearchView } from './search/search-view'
 import { buildSearchIndex, focusTargetId } from './search/search-index'
+import { diffGraphs } from './graph/graph-diff'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
 import { LogView } from './log/log-view'
 import { EditorView } from './editor/editor-view'
@@ -95,8 +96,24 @@ if (root) {
         store.setCodeSaved(activeId, content, res.mtime)
         editorView.markSaved()
         // 저장 시 자동 증분 재분석 → 그래프/검색 갱신. (06 §4, M12_3)
+        const before = active.analysis.graph
         const updated = await window.codetree.reanalyze(active.projectPath, cv.file)
         store.finishAnalysis(activeId, updated.summary, updated.graph, updated.logSites)
+        // 영향 범위(추가/변경 노드 강조 + 요약). (06 §5, M12_4)
+        if (before) {
+          const d = diffGraphs(before, updated.graph)
+          const changed = fileNodeId(cv.file)
+          const highlight = [...new Set([...d.addedNodes, changed])]
+          store.setImpact(activeId, {
+            highlight,
+            summary: {
+              addedNodes: d.addedNodes.length,
+              removedNodes: d.removedNodes.length,
+              addedEdges: d.addedEdges,
+              removedEdges: d.removedEdges
+            }
+          })
+        }
       } else if ('error' in res) {
         alert(`저장 실패: ${res.error}`)
       }
@@ -148,10 +165,15 @@ if (root) {
         backtrace: startBacktrace,
         exitBacktrace,
         openCandidate: (site) => void openSource(site.file, site.line),
-        openSource: (file, line) => void openSource(file, line)
+        openSource: (file, line) => void openSource(file, line),
+        clearImpact: () => {
+          const id = store.getActiveId()
+          if (id) store.setImpact(id, null)
+        }
       })
       const active = store.getActive()
       graphView.sync(active)
+      graphView.setImpact(active?.impact?.highlight ?? []) // 영향 범위 강조. (M12_4)
       // 로그 분석: 열린 로그가 있으면 좌측 로그 패널 표시. (04 §2, M11_1)
       if (active && active.log) {
         wsLog.hidden = false
@@ -281,6 +303,11 @@ if (root) {
         const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
         store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph(), DEMO_LOG_SITES)
         store.setSelectedNode(demo.id, fileNodeId('core/src/main/kotlin/Repository.kt'))
+        // 영향 범위 데모: Repository.kt 변경 강조. (M12_4)
+        store.setImpact(demo.id, {
+          highlight: [fileNodeId('core/src/main/kotlin/Repository.kt')],
+          summary: { addedNodes: 1, removedNodes: 0, addedEdges: 2, removedEdges: 0 }
+        })
         // 로그 분석 데모: 좌측 로그 패널 + 로그→코드 역추적 후보. (M11_1, M11_4)
         store.openLog(demo.id, {
           path: '/logs/app.logcat',

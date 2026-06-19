@@ -704,6 +704,36 @@ body {
   text-overflow: ellipsis;
 }
 
+/* 재분석 영향 범위 패널. (06 §5, M12_4) */
+.impact-panel {
+  border-left: 3px solid #5fd38a;
+}
+
+.impact-panel__sum {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.impact-panel__hint {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.impact-panel__clear {
+  margin-top: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-tab);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.impact-panel__clear:hover {
+  filter: brightness(1.15);
+}
+
 /* 역추적 패널. (M10_2) */
 .backtrace-panel__sub {
   margin-top: 6px;

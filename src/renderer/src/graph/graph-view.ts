@@ -56,6 +56,11 @@ const GRAPH_STYLE: StylesheetStyle[] = [
   },
   { selector: '.dimmed', style: { opacity: 0.16 } },
   {
+    // 재분석 영향(추가/변경) 노드 강조. (06 §5, M12_4)
+    selector: 'node.impacted',
+    style: { 'border-width': 3, 'border-color': '#5fd38a', 'border-style': 'double' }
+  },
+  {
     selector: 'edge',
     style: {
       width: 1,
@@ -121,6 +126,9 @@ export class GraphView {
   // 역추적(backtrace) 상태. (M10_2)
   private backtraceId: string | null = null
   private callerAdjacency: Map<string, string[]> = new Map()
+
+  // 재분석 영향 범위 강조. (M12_4)
+  private impactKey: string | null = null
 
   constructor(
     private readonly host: HTMLElement,
@@ -205,6 +213,19 @@ export class GraphView {
     if (this.backtraceId) cy.getElementById(this.backtraceId).addClass('selected')
   }
 
+  /** 재분석 영향 노드를 강조한다(추가/변경). 파일 그래프 모드에서만 의미. (06 §5, M12_4) */
+  setImpact(nodeIds: readonly string[]): void {
+    const key = nodeIds.join('|')
+    if (this.impactKey === key) return
+    this.impactKey = key
+    const cy = this.cy
+    if (!cy) return
+    const wanted = new Set(nodeIds)
+    cy.nodes().forEach((node) => {
+      node.toggleClass('impacted', wanted.has(node.id()))
+    })
+  }
+
   private markBacktraceExpandable(): void {
     const cy = this.cy
     if (!cy) return
@@ -258,6 +279,7 @@ export class GraphView {
     this.destroyCy()
     this.host.style.display = 'block'
     this.backtraceId = null
+    this.impactKey = null // 재그리기 후 영향 강조 재적용 필요
     this.mode = mode
     this.collapsed.clear()
     this.fullGraph = graph
@@ -404,6 +426,7 @@ export class GraphView {
     this.currentKey = null
     this.selectedId = null
     this.backtraceId = null
+    this.impactKey = null
     this.host.style.display = 'none'
   }
 
