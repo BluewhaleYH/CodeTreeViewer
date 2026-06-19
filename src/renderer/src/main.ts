@@ -68,8 +68,6 @@ if (root) {
     if (window.codetree.captureMode) {
       const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
       store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
-      // 트리 뷰 렌더 확인용. (관계도는 기본 모드)
-      store.setViewMode(demo.id, 'tree')
     }
 
     render()
