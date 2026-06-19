@@ -69,9 +69,43 @@ if (root) {
     const logView = new LogView(wsLog, { onClose: closeLog, onSelectLine: selectLogLine })
     const closeCode = (): void => {
       const activeId = store.getActiveId()
-      if (activeId) store.setCodeView(activeId, null)
+      const active = store.getActive()
+      if (!activeId) return
+      // 미저장 변경이 있으면 닫기 전 경고. (06 §6)
+      if (
+        active?.codeView?.dirty &&
+        !confirm('저장하지 않은 변경이 있습니다. 편집기를 닫을까요?')
+      ) {
+        return
+      }
+      store.setCodeView(activeId, null)
     }
-    const editorView = new EditorView(wsCode, { onClose: closeCode })
+    // 저장: 원자적 쓰기 + 외부 변경 충돌 시 덮어쓰기 확인. (06 §3, §6, M12_2)
+    const saveSource = async (content: string): Promise<void> => {
+      const activeId = store.getActiveId()
+      const active = store.getActive()
+      const cv = active?.codeView
+      if (!activeId || !active?.projectPath || !cv) return
+      let res = await window.codetree.saveSource(active.projectPath, cv.file, content, cv.baseMtime)
+      if (!res.ok && 'conflict' in res) {
+        if (!confirm(`${cv.file} 이(가) 앱 밖에서 변경되었습니다. 덮어쓸까요?`)) return
+        res = await window.codetree.saveSource(active.projectPath, cv.file, content, null) // 강제
+      }
+      if (res.ok) {
+        store.setCodeSaved(activeId, content, res.mtime)
+        editorView.markSaved()
+      } else if ('error' in res) {
+        alert(`저장 실패: ${res.error}`)
+      }
+    }
+    const editorView = new EditorView(wsCode, {
+      onClose: closeCode,
+      onSave: (content) => void saveSource(content),
+      onDirtyChange: (dirty) => {
+        const id = store.getActiveId()
+        if (id) store.setCodeDirty(id, dirty)
+      }
+    })
 
     // 소스를 편집기로 연다(노드→소스 / 로그 후보→코드). 그래프 노드 포커스(3중 연동). (06 §2, M12_1)
     const openSource = async (file: string, line: number): Promise<void> => {
@@ -79,8 +113,16 @@ if (root) {
       const active = store.getActive()
       if (!activeId || !active?.projectPath) return
       selectNode(fileNodeId(file))
-      const content = await window.codetree.readSource(active.projectPath, file)
-      if (content !== null) store.setCodeView(activeId, { file, line, content })
+      const result = await window.codetree.readSource(active.projectPath, file)
+      if (result !== null) {
+        store.setCodeView(activeId, {
+          file,
+          line,
+          content: result.content,
+          baseMtime: result.mtime,
+          dirty: false
+        })
+      }
     }
 
     const isCapture = window.codetree.captureMode
@@ -207,10 +249,26 @@ if (root) {
       else if (action === 'open-log') void openLog()
       else if (action === 'new-tab') store.addEmptyTab()
       else if (action === 'close-tab') {
-        const active = store.getActiveId()
-        if (active) store.closeTab(active)
+        const active = store.getActive()
+        if (!active) return
+        // 미저장 변경이 있으면 탭 닫기 전 경고. (06 §6)
+        if (active.codeView?.dirty && !confirm('저장하지 않은 변경이 있습니다. 탭을 닫을까요?')) {
+          return
+        }
+        store.closeTab(active.id)
       }
     })
+
+    // 미저장 변경 상태로 창/앱 종료 시 경고. (06 §6, F-E4)
+    if (!isCapture) {
+      window.addEventListener('beforeunload', (event) => {
+        const hasDirty = store.getTabs().some((t) => t.codeView?.dirty)
+        if (hasDirty && !confirm('저장하지 않은 변경이 있습니다. 종료할까요?')) {
+          event.preventDefault()
+          event.returnValue = ''
+        }
+      })
+    }
 
     // 부트: 저장된 세션을 복원한다. 프로젝트 탭은 재분석한다. 없으면 빈 탭. (01 §5, M8_3)
     const boot = async (): Promise<void> => {
@@ -231,7 +289,9 @@ if (root) {
         store.setCodeView(demo.id, {
           file: 'core/src/main/kotlin/Repository.kt',
           line: 14,
-          content: DEMO_CODE_LINES.join('\n')
+          content: DEMO_CODE_LINES.join('\n'),
+          baseMtime: null,
+          dirty: false
         })
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
