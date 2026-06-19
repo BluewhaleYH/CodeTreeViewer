@@ -1,5 +1,6 @@
 import type { SearchEntry } from './search-index'
 import { DEFAULT_SEARCH_OPTIONS, searchEntries, type SearchOptions } from './search'
+import { SearchHistory } from './search-history'
 
 /**
  * 검색 UI(영속 요소). (05 §2)
@@ -14,6 +15,7 @@ export class SearchView {
   private options: SearchOptions = { ...DEFAULT_SEARCH_OPTIONS }
   private index: readonly SearchEntry[] = []
   private contextKey: string | null = null
+  private readonly history = new SearchHistory()
 
   private readonly input: HTMLInputElement
   private readonly results: HTMLElement
@@ -42,6 +44,9 @@ export class SearchView {
       this.query = this.input.value
       this.renderResults()
     })
+    this.input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') this.history.add(this.query)
+    })
     this.host.querySelectorAll<HTMLInputElement>('input[data-opt]').forEach((el) => {
       el.addEventListener('change', () => {
         const key = el.dataset.opt as keyof SearchOptions
@@ -51,10 +56,15 @@ export class SearchView {
     })
   }
 
-  /** 자체 검수(스크린샷)용 질의 시드. */
+  /** 자체 검수(스크린샷)용 질의/히스토리 시드. */
   seedQuery(query: string): void {
     this.query = query
     this.input.value = query
+    this.renderResults()
+  }
+
+  seedHistory(queries: string[]): void {
+    ;[...queries].reverse().forEach((q) => this.history.add(q))
     this.renderResults()
   }
 
@@ -71,11 +81,41 @@ export class SearchView {
 
   private renderResults(): void {
     this.results.innerHTML = ''
-    const matches = searchEntries(this.index, this.query, this.options)
+
+    // 빈 질의: 최근 검색어(히스토리) 표시. (05 §7)
     if (this.query.trim() === '') {
-      this.results.classList.remove('is-open')
+      const recent = this.history.recent()
+      if (recent.length === 0) {
+        this.results.classList.remove('is-open')
+        return
+      }
+      this.results.classList.add('is-open')
+      const header = document.createElement('div')
+      header.className = 'search__empty'
+      header.textContent = '최근 검색'
+      this.results.appendChild(header)
+      for (const q of recent) {
+        const row = document.createElement('button')
+        row.className = 'search__row'
+        row.addEventListener('click', () => {
+          this.query = q
+          this.input.value = q
+          this.input.focus()
+          this.renderResults()
+        })
+        const icon = document.createElement('span')
+        icon.className = 'search__icon'
+        icon.textContent = '↩'
+        const name = document.createElement('span')
+        name.className = 'search__name'
+        name.textContent = q
+        row.append(icon, name)
+        this.results.appendChild(row)
+      }
       return
     }
+
+    const matches = searchEntries(this.index, this.query, this.options)
     this.results.classList.add('is-open')
 
     if (matches.length === 0) {
@@ -89,7 +129,10 @@ export class SearchView {
     for (const entry of matches.slice(0, MAX_RESULTS)) {
       const row = document.createElement('button')
       row.className = 'search__row'
-      row.addEventListener('click', () => this.onPick(entry))
+      row.addEventListener('click', () => {
+        this.history.add(this.query)
+        this.onPick(entry)
+      })
 
       const icon = document.createElement('span')
       icon.className = 'search__icon'
