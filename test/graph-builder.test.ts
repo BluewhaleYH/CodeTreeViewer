@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { GraphBuilder } from '../src/main/analysis/graph-builder'
-import {
-  fileNodeId,
-  functionNodeId,
-  externalNodeId,
-  type GraphNode
-} from '../src/shared/graph'
+import { fileNodeId, functionNodeId, externalNodeId, type GraphNode } from '../src/shared/graph'
 
 function fileNode(relativePath: string, name: string): GraphNode {
   return {

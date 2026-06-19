@@ -24,16 +24,34 @@ describe('toCytoscapeElements (M5_2)', () => {
         domain: null,
         external: true,
         line: null
+      },
+      {
+        id: 'function:a/A.java#foo',
+        kind: 'function',
+        name: 'foo',
+        path: 'a/A.java',
+        language: 'java',
+        domain: 'a',
+        external: false,
+        line: 2
       }
     ],
     edges: [
-      { id: 'file-dependency:file:a/A.java->external:ext.Lib', type: 'file-dependency', from: 'file:a/A.java', to: 'external:ext.Lib', line: 3 }
+      {
+        id: 'file-dependency:file:a/A.java->external:ext.Lib',
+        type: 'file-dependency',
+        from: 'file:a/A.java',
+        to: 'external:ext.Lib',
+        line: 3
+      }
     ]
   }
 
-  it('노드/엣지를 Cytoscape elements로 변환한다', () => {
+  it('파일/외부 노드와 엣지를 변환하고 function 노드는 제외한다', () => {
     const elements = toCytoscapeElements(graph)
+    // file + external + edge = 3 (function 제외)
     expect(elements).toHaveLength(3)
+    expect(elements.some((e) => e.data.id === 'function:a/A.java#foo')).toBe(false)
     const nodeA = elements.find((e) => e.data.id === 'file:a/A.java')
     expect(nodeA?.data.label).toBe('A.java')
     expect(nodeA?.data.external).toBe('false')

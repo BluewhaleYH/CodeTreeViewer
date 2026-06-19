@@ -130,7 +130,13 @@ export class TabStore {
   }
 
   startAnalysis(id: string): void {
-    this.patchAnalysis(id, { status: 'running', progress: null, summary: null, graph: null, error: null })
+    this.patchAnalysis(id, {
+      status: 'running',
+      progress: null,
+      summary: null,
+      graph: null,
+      error: null
+    })
   }
 
   setAnalysisProgress(id: string, progress: AnalysisProgress): void {
