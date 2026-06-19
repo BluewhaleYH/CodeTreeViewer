@@ -60,4 +60,12 @@ describe('toCytoscapeElements (M5_2)', () => {
     const edge = elements.find((e) => e.data.source === 'file:a/A.java')
     expect(edge?.data.target).toBe('external:ext.Lib')
   })
+
+  it('영역 색상 맵을 노드 color에 반영한다', () => {
+    const elements = toCytoscapeElements(graph, new Map([['a', '#abcdef']]))
+    const nodeA = elements.find((e) => e.data.id === 'file:a/A.java')
+    expect(nodeA?.data.color).toBe('#abcdef') // domain a
+    const ext = elements.find((e) => e.data.id === 'external:ext.Lib')
+    expect(ext?.data.color).toBe('#555a60') // 외부는 회색
+  })
 })

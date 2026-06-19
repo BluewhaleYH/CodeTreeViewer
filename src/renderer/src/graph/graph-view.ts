@@ -10,6 +10,7 @@ import { toCytoscapeElements } from './to-cytoscape'
 import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
 import { DEFAULT_MAX_INITIAL_NODES, selectInitialView } from './initial-view'
 import { buildNeighborAdjacency, expandableNodeIds } from './expand'
+import { assignDomainColors } from './domain-colors'
 
 /**
  * 그래프 캔버스(Cytoscape) 생명주기 + 상호작용. (03 §2~§5, §8)
@@ -23,7 +24,7 @@ const GRAPH_STYLE: StylesheetStyle[] = [
   {
     selector: 'node',
     style: {
-      'background-color': '#4a9eff',
+      'background-color': 'data(color)',
       label: 'data(label)',
       'font-size': 7,
       color: '#9aa0a6',
@@ -36,7 +37,7 @@ const GRAPH_STYLE: StylesheetStyle[] = [
   },
   {
     selector: 'node[external="true"]',
-    style: { 'background-color': '#555a60', shape: 'diamond', width: 10, height: 10 }
+    style: { shape: 'diamond', width: 10, height: 10 }
   },
   { selector: 'node.collapsed', style: { 'border-width': 2, 'border-color': '#e2b341' } },
   {
@@ -88,6 +89,7 @@ export class GraphView {
   private mode: ViewMode = 'graph'
 
   private fullGraph: CodeGraph = { nodes: [], edges: [] }
+  private domainColors: Map<string, string> = new Map()
   private neighborAdjacency: Map<string, Set<string>> = new Map()
   private childAdjacency: Map<string, string[]> = new Map()
   private displayed = new Set<string>()
@@ -134,6 +136,7 @@ export class GraphView {
     this.collapsed.clear()
     this.fullGraph = graph
     this.neighborAdjacency = buildNeighborAdjacency(graph)
+    this.domainColors = assignDomainColors(graph)
 
     const view = selectInitialView(graph, this.maxInitialNodes)
     this.displayed = new Set(view.graph.nodes.map((n) => n.id))
@@ -141,7 +144,7 @@ export class GraphView {
 
     const cy = cytoscape({
       container: this.host,
-      elements: toCytoscapeElements(view.graph),
+      elements: toCytoscapeElements(view.graph, this.domainColors),
       style: GRAPH_STYLE,
       layout: layoutFor(mode),
       wheelSensitivity: 0.2,
@@ -236,7 +239,7 @@ export class GraphView {
         this.displayed.has(e.to) &&
         cy.getElementById(e.id).length === 0
     )
-    cy.add(toCytoscapeElements({ nodes: addedNodes, edges: newEdges }))
+    cy.add(toCytoscapeElements({ nodes: addedNodes, edges: newEdges }, this.domainColors))
     cy.layout(radialLayout).run()
     this.markExpandable()
     this.applySelectedStyle()
