@@ -18,6 +18,7 @@ if (root) {
         <div class="ws-graph" id="ws-graph"></div>
         <div class="ws-overlay" id="ws-overlay"></div>
         <div class="ws-search" id="ws-search"></div>
+        <div class="session-notice" id="session-notice" hidden></div>
       </main>
     </div>
   `
@@ -85,6 +86,26 @@ if (root) {
       }
     }
 
+    const noticeHost = root.querySelector<HTMLElement>('#session-notice')
+    // 세션 손상 등 비차단 알림 배너. 사용자가 닫을 수 있으며 동작을 막지 않는다. (01 §10)
+    const showSessionNotice = (notice: { kind: string }): void => {
+      if (!noticeHost) return
+      noticeHost.replaceChildren()
+      const msg = document.createElement('span')
+      msg.textContent =
+        notice.kind === 'corrupted'
+          ? '이전 세션 파일이 손상되어 백업본 또는 초기 상태로 복원했습니다.'
+          : '세션 알림'
+      const close = document.createElement('button')
+      close.className = 'session-notice__close'
+      close.setAttribute('aria-label', '닫기')
+      close.textContent = '×'
+      close.addEventListener('click', () => noticeHost.setAttribute('hidden', ''))
+      noticeHost.append(msg, close)
+      noticeHost.removeAttribute('hidden')
+    }
+    window.codetree.onSessionNotice(showSessionNotice)
+
     window.codetree.onMenuAction((action) => {
       if (action === 'open-project') void openProject()
       else if (action === 'new-tab') store.addEmptyTab()
@@ -105,6 +126,8 @@ if (root) {
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
         searchView.seedHistory(['Repository', 'ViewModel', 'load'])
+        // 세션 손상 알림 배너 시연.
+        showSessionNotice({ kind: 'corrupted' })
         return
       }
 

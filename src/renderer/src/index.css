@@ -477,3 +477,40 @@ body {
 .welcome__button:hover {
   filter: brightness(1.08);
 }
+
+/* 세션 손상 등 비차단 알림 배너. (01 §10) */
+.session-notice {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 80%;
+  padding: 8px 12px;
+  border: 1px solid #6b5a2e;
+  border-radius: 6px;
+  background: rgba(60, 50, 24, 0.96);
+  color: #f0e2b8;
+  font-size: 12px;
+  z-index: 20;
+}
+
+.session-notice[hidden] {
+  display: none;
+}
+
+.session-notice__close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.session-notice__close:hover {
+  color: #ffffff;
+}

@@ -31,3 +31,8 @@ export interface SessionState {
 export function emptySession(): SessionState {
   return { version: SESSION_VERSION, window: null, tabs: [], activeIndex: 0 }
 }
+
+/** 세션 관련 비차단 알림. 현재는 손상 감지 1종. (01 §10) */
+export interface SessionNotice {
+  kind: 'corrupted'
+}
