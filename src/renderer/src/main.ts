@@ -3,6 +3,8 @@ import { TabStore } from './tabs/tab-store'
 import { renderTabBar } from './tabs/tab-bar'
 import { renderOverlay } from './tabs/tab-content'
 import { GraphView } from './graph/graph-view'
+import { SearchView } from './search/search-view'
+import { buildSearchIndex } from './search/search-index'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
 import { fileNodeId } from '../../shared/graph'
 
@@ -15,6 +17,7 @@ if (root) {
       <main class="workspace">
         <div class="ws-graph" id="ws-graph"></div>
         <div class="ws-overlay" id="ws-overlay"></div>
+        <div class="ws-search" id="ws-search"></div>
       </main>
     </div>
   `
@@ -22,18 +25,29 @@ if (root) {
   const tabbar = root.querySelector<HTMLElement>('#tabbar')
   const wsGraph = root.querySelector<HTMLElement>('#ws-graph')
   const wsOverlay = root.querySelector<HTMLElement>('#ws-overlay')
+  const wsSearch = root.querySelector<HTMLElement>('#ws-search')
 
-  if (tabbar && wsGraph && wsOverlay) {
+  if (tabbar && wsGraph && wsOverlay && wsSearch) {
     const store = new TabStore()
-    const graphView = new GraphView(wsGraph, (nodeId) => {
+    const selectNode = (nodeId: string | null): void => {
       const activeId = store.getActiveId()
       if (activeId) store.setSelectedNode(activeId, nodeId)
-    })
+    }
+    const graphView = new GraphView(wsGraph, selectNode)
+    const searchView = new SearchView(wsSearch, (nodeId) => selectNode(nodeId))
 
     const render = (): void => {
       renderTabBar(tabbar, store)
       renderOverlay(wsOverlay, store, { openProject: () => void openProject() })
-      graphView.sync(store.getActive())
+      const active = store.getActive()
+      graphView.sync(active)
+      // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
+      if (active && active.analysis.status === 'done' && active.analysis.graph) {
+        wsSearch.style.display = 'block'
+        searchView.setContext(active.id, buildSearchIndex(active.analysis.graph))
+      } else {
+        wsSearch.style.display = 'none'
+      }
     }
     store.subscribe(render)
 
@@ -69,13 +83,16 @@ if (root) {
     store.addEmptyTab()
 
     // 자체 검수(스크린샷) 모드: 데모 그래프를 시드해 캔버스 렌더를 확인한다.
-    if (window.codetree.captureMode) {
+    const isCapture = window.codetree.captureMode
+    if (isCapture) {
       const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
       store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
-      // 선택 상태 시연.
       store.setSelectedNode(demo.id, fileNodeId('core/src/main/kotlin/Repository.kt'))
     }
 
     render()
+
+    // 검색 결과 시연(렌더 후 인덱스가 설정된 뒤).
+    if (isCapture) searchView.seedQuery('kt')
   }
 }
