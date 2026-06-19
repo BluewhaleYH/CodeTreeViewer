@@ -14,6 +14,11 @@ export interface TabViewState {
   mode: ViewMode
   /** 선택(포커스)된 노드 id. 뷰 모드 전환 시에도 유지된다. (03 §5.2, M6) */
   selectedNodeId: string | null
+  /**
+   * 역추적 중인 함수 노드 id(호출처 표시). null이면 파일 그래프. (02 §6, 03 §5.3, M10_2)
+   * 전환 탐색 상태이므로 세션에 영속하지 않는다.
+   */
+  backtrace: string | null
 }
 
 export type AnalysisStatus = 'idle' | 'running' | 'done' | 'error'
@@ -55,7 +60,7 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     id: nextId(),
     projectPath,
     projectName,
-    view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null },
+    view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null, backtrace: null },
     analysis: createAnalysisState()
   }
 }
@@ -114,22 +119,38 @@ export class TabStore {
     return tab
   }
 
-  /** 탭의 뷰 모드를 설정한다(탭별 독립). 선택 노드는 유지한다. (03 §5.2) */
+  /** 탭의 뷰 모드를 설정한다(탭별 독립). 역추적 중이면 파일 그래프로 복귀한다. (03 §5.2, M10_2) */
   setViewMode(id: string, mode: ViewMode): void {
     const tab = this.tabs.find((t) => t.id === id)
-    if (tab && tab.view.mode !== mode) {
-      tab.view = { ...tab.view, mode }
-      this.emit()
-    }
+    if (!tab) return
+    if (tab.view.mode === mode && tab.view.backtrace === null) return
+    tab.view = { ...tab.view, mode, backtrace: null }
+    this.emit()
   }
 
-  /** 선택(포커스) 노드를 설정한다. (03 §5.3, M6) */
+  /** 선택(포커스) 노드를 설정한다. 역추적 중이면 종료하고 파일 그래프로 복귀한다. (03 §5.3, M6) */
   setSelectedNode(id: string, nodeId: string | null): void {
     const tab = this.tabs.find((t) => t.id === id)
-    if (tab && tab.view.selectedNodeId !== nodeId) {
-      tab.view = { ...tab.view, selectedNodeId: nodeId }
-      this.emit()
-    }
+    if (!tab) return
+    if (tab.view.selectedNodeId === nodeId && tab.view.backtrace === null) return
+    tab.view = { ...tab.view, selectedNodeId: nodeId, backtrace: null }
+    this.emit()
+  }
+
+  /** 함수 호출처 역추적을 시작/전환한다. (02 §6, 03 §5.3, M10_2) */
+  setBacktrace(id: string, functionId: string): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || tab.view.backtrace === functionId) return
+    tab.view = { ...tab.view, backtrace: functionId }
+    this.emit()
+  }
+
+  /** 역추적을 종료하고 파일 그래프로 돌아간다. (M10_2) */
+  clearBacktrace(id: string): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || tab.view.backtrace === null) return
+    tab.view = { ...tab.view, backtrace: null }
+    this.emit()
   }
 
   /** 분석 상태를 갱신한다(탭이 없으면 무시). */
@@ -208,7 +229,8 @@ export class TabStore {
   restore(persisted: readonly PersistedTab[], activeIndex: number): TabState[] {
     this.tabs = persisted.map((p) => {
       const tab = createTab(p.projectPath, p.projectName)
-      tab.view = { mode: p.view.mode, selectedNodeId: p.view.selectedNodeId }
+      // 역추적은 영속하지 않으므로 항상 null로 복원한다. (M10_2)
+      tab.view = { mode: p.view.mode, selectedNodeId: p.view.selectedNodeId, backtrace: null }
       return tab
     })
     const active = this.tabs[activeIndex] ?? this.tabs[0] ?? null

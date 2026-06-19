@@ -1,10 +1,15 @@
 import type { TabState, TabStore } from './tab-store'
 import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
 import { assignDomainColors } from '../graph/domain-colors'
+import { buildCallerAdjacency } from '../graph/backtrace'
 import type { CodeGraph } from '../../../shared/graph'
 
 export interface TabContentActions {
   openProject: () => void
+  /** 함수 호출처 역추적을 시작한다(함수 노드 id). (M10_2) */
+  backtrace: (functionId: string) => void
+  /** 역추적을 종료하고 파일 그래프로 돌아간다. (M10_2) */
+  exitBacktrace: () => void
 }
 
 /**
@@ -32,11 +37,17 @@ export function renderOverlay(
   if (status === 'done' && active.analysis.summary) {
     host.className = 'ws-overlay ws-overlay--corner'
     host.appendChild(renderStatsPanel(active))
-    host.appendChild(renderViewToggle(active, store))
-    if (active.analysis.graph) host.appendChild(renderLegend(active.analysis.graph))
-    if (active.analysis.graph && active.view.selectedNodeId) {
-      const info = renderInfoPanel(active.analysis.graph, active.view.selectedNodeId)
-      if (info) host.appendChild(info)
+    const graph = active.analysis.graph
+    // 역추적 모드: 전용 패널(함수명 + 호출처 수 + 종료). 그 외: 토글/범례/정보패널. (M10_2)
+    if (active.view.backtrace && graph) {
+      host.appendChild(renderBacktracePanel(graph, active.view.backtrace, actions))
+    } else {
+      host.appendChild(renderViewToggle(active, store))
+      if (graph) host.appendChild(renderLegend(graph))
+      if (graph && active.view.selectedNodeId) {
+        const info = renderInfoPanel(graph, active.view.selectedNodeId, actions)
+        if (info) host.appendChild(info)
+      }
     }
     return
   }
@@ -45,8 +56,12 @@ export function renderOverlay(
   host.appendChild(renderStatus(active))
 }
 
-/** 선택 노드 정보 패널(읽기 전용). 편집기 연동은 M12. (03 §10, M6_5) */
-function renderInfoPanel(graph: CodeGraph, selectedId: string): HTMLElement | null {
+/** 선택 노드 정보 패널(읽기 전용). 함수 목록은 클릭 시 역추적 시작. (03 §10, M6_5, M10_2) */
+function renderInfoPanel(
+  graph: CodeGraph,
+  selectedId: string,
+  actions: TabContentActions
+): HTMLElement | null {
   const node = graph.nodes.find((n) => n.id === selectedId)
   if (!node) return null
 
@@ -92,7 +107,13 @@ function renderInfoPanel(graph: CodeGraph, selectedId: string): HTMLElement | nu
       list.className = 'info-panel__fns'
       for (const fn of functions.slice(0, 30)) {
         const li = document.createElement('li')
-        li.textContent = fn.name
+        // 함수 클릭 → 호출처 역추적. (M10_2)
+        const btn = document.createElement('button')
+        btn.className = 'info-panel__fn'
+        btn.textContent = fn.name
+        btn.title = '호출처 역추적'
+        btn.addEventListener('click', () => actions.backtrace(fn.id))
+        li.appendChild(btn)
         list.appendChild(li)
       }
       if (functions.length > 30) {
@@ -105,6 +126,38 @@ function renderInfoPanel(graph: CodeGraph, selectedId: string): HTMLElement | nu
     }
   }
 
+  return panel
+}
+
+/** 역추적 패널: 대상 함수명 + 직접 호출처 수 + 종료 버튼. (02 §6, 03 §5.3, M10_2) */
+function renderBacktracePanel(
+  graph: CodeGraph,
+  functionId: string,
+  actions: TabContentActions
+): HTMLElement {
+  const node = graph.nodes.find((n) => n.id === functionId)
+  const callerCount = (buildCallerAdjacency(graph).get(functionId) ?? []).length
+
+  const panel = document.createElement('div')
+  panel.className = 'info-panel backtrace-panel'
+
+  const title = document.createElement('div')
+  title.className = 'info-panel__title'
+  title.textContent = `역추적: ${node?.name ?? functionId}`
+
+  const sub = document.createElement('div')
+  sub.className = 'backtrace-panel__sub muted'
+  sub.textContent =
+    callerCount > 0
+      ? `직접 호출처 ${callerCount}곳 · 노드를 클릭해 더 거슬러 올라가기`
+      : '직접 호출처가 없습니다(진입점이거나 미해결).'
+
+  const exit = document.createElement('button')
+  exit.className = 'backtrace-panel__exit'
+  exit.textContent = '← 파일 그래프로'
+  exit.addEventListener('click', () => actions.exitBacktrace())
+
+  panel.append(title, sub, exit)
   return panel
 }
 

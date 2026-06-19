@@ -6,11 +6,12 @@ import cytoscape, {
 } from 'cytoscape'
 import type { CodeGraph } from '../../../shared/graph'
 import type { TabState, ViewMode } from '../tabs/tab-store'
-import { toCytoscapeElements } from './to-cytoscape'
+import { backtraceElements, toCytoscapeElements } from './to-cytoscape'
 import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
 import { DEFAULT_MAX_INITIAL_NODES, selectInitialView } from './initial-view'
 import { buildNeighborAdjacency, expandableNodeIds } from './expand'
 import { assignDomainColors } from './domain-colors'
+import { backtraceSubgraph, buildCallerAdjacency, expandableCallers } from './backtrace'
 
 /**
  * 그래프 캔버스(Cytoscape) 생명주기 + 상호작용. (03 §2~§5, §8)
@@ -39,6 +40,11 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     selector: 'node[external="true"]',
     style: { shape: 'diamond', width: 10, height: 10 }
   },
+  {
+    // 역추적 모드의 함수 노드(둥근 사각형으로 파일 노드와 구분). (M10_2)
+    selector: 'node[kind="function"]',
+    style: { shape: 'round-rectangle', width: 16, height: 11 }
+  },
   { selector: 'node.collapsed', style: { 'border-width': 2, 'border-color': '#e2b341' } },
   {
     selector: 'node.expandable',
@@ -59,8 +65,21 @@ const GRAPH_STYLE: StylesheetStyle[] = [
       'arrow-scale': 0.6,
       'curve-style': 'bezier'
     }
+  },
+  {
+    // 호출(function-call) 엣지: 파일 의존성과 구분되는 색/점선. (M10_2)
+    selector: 'edge[type="function-call"]',
+    style: { 'line-color': '#6b8cce', 'target-arrow-color': '#6b8cce', 'line-style': 'dashed' }
   }
 ]
+
+/** 역추적(호출 체인) 레이아웃: 위계적 배치(호출처 위 → 피호출 아래). */
+const backtraceLayout: LayoutOptions = {
+  name: 'breadthfirst',
+  directed: true,
+  spacingFactor: 1.1,
+  animate: false
+}
 
 const radialLayout: LayoutOptions = {
   name: 'concentric',
@@ -99,6 +118,10 @@ export class GraphView {
   private lastTapId: string | null = null
   private lastTapTime = 0
 
+  // 역추적(backtrace) 상태. (M10_2)
+  private backtraceId: string | null = null
+  private callerAdjacency: Map<string, string[]> = new Map()
+
   constructor(
     private readonly host: HTMLElement,
     private readonly onSelectNode?: (nodeId: string | null) => void,
@@ -111,6 +134,14 @@ export class GraphView {
       this.clear()
       return
     }
+    // 역추적 모드: 선택 함수의 호출처 체인을 표시한다. (M10_2)
+    if (tab.view.backtrace) {
+      const key = `${tab.id}:bt:${tab.view.backtrace}`
+      if (this.currentKey === key && this.cy) return
+      this.currentKey = key
+      this.drawBacktrace(graph, tab.view.backtrace)
+      return
+    }
     const key = `${tab.id}:${tab.view.mode}`
     if (this.currentKey === key && this.cy) {
       // 같은 뷰: 외부(시드/검색 등)에서 바뀐 선택을 캔버스에 반영한다.
@@ -119,6 +150,68 @@ export class GraphView {
     }
     this.currentKey = key
     this.draw(graph, tab.view.mode, tab.view.selectedNodeId)
+  }
+
+  /**
+   * 역추적 뷰를 그린다. 선택 함수(마지막 노드) + 직접 호출처(1-홉)를 표시하고,
+   * 호출처 노드 클릭 시 그 위 호출처를 점진 확장한다. (02 §6, 03 §5.3, D17 점진 확장)
+   */
+  private drawBacktrace(graph: CodeGraph, functionId: string): void {
+    this.destroyCy()
+    this.host.style.display = 'block'
+    this.backtraceId = functionId
+    this.fullGraph = graph
+    this.domainColors = assignDomainColors(graph)
+    this.callerAdjacency = buildCallerAdjacency(graph)
+
+    const callers = this.callerAdjacency.get(functionId) ?? []
+    this.displayed = new Set([functionId, ...callers])
+
+    const cy = cytoscape({
+      container: this.host,
+      elements: backtraceElements(backtraceSubgraph(this.displayed, graph), this.domainColors),
+      style: GRAPH_STYLE,
+      layout: backtraceLayout,
+      wheelSensitivity: 0.2,
+      minZoom: 0.05,
+      maxZoom: 4
+    })
+    this.cy = cy
+
+    // 호출처 노드 클릭 = 그 위 호출처 점진 확장.
+    cy.on('tap', 'node', (event) => this.revealCallers(event.target.id()))
+    this.markBacktraceExpandable()
+    cy.getElementById(functionId).addClass('selected') // 마지막 노드 강조
+  }
+
+  /** 노드의 직접 호출처(1-홉)를 드러낸다(점진 확장). (M10_2) */
+  private revealCallers(id: string): void {
+    const cy = this.cy
+    if (!cy) return
+    const callers = this.callerAdjacency.get(id) ?? []
+    const added = callers.filter((c) => !this.displayed.has(c))
+    if (added.length === 0) return
+
+    added.forEach((c) => this.displayed.add(c))
+    const sub = backtraceSubgraph(this.displayed, this.fullGraph)
+    const addedSet = new Set(added)
+    const newNodes = sub.nodes.filter((n) => addedSet.has(n.id))
+    const newEdges = sub.edges.filter(
+      (e) => (addedSet.has(e.from) || addedSet.has(e.to)) && cy.getElementById(e.id).length === 0
+    )
+    cy.add(backtraceElements({ nodes: newNodes, edges: newEdges }, this.domainColors))
+    cy.layout(backtraceLayout).run()
+    this.markBacktraceExpandable()
+    if (this.backtraceId) cy.getElementById(this.backtraceId).addClass('selected')
+  }
+
+  private markBacktraceExpandable(): void {
+    const cy = this.cy
+    if (!cy) return
+    const expandable = expandableCallers(this.displayed, this.callerAdjacency)
+    cy.nodes().forEach((node) => {
+      node.toggleClass('expandable', expandable.has(node.id()))
+    })
   }
 
   /**
@@ -164,6 +257,7 @@ export class GraphView {
   private draw(graph: CodeGraph, mode: ViewMode, selectedNodeId: string | null): void {
     this.destroyCy()
     this.host.style.display = 'block'
+    this.backtraceId = null
     this.mode = mode
     this.collapsed.clear()
     this.fullGraph = graph
@@ -309,6 +403,7 @@ export class GraphView {
     this.destroyCy()
     this.currentKey = null
     this.selectedId = null
+    this.backtraceId = null
     this.host.style.display = 'none'
   }
 
