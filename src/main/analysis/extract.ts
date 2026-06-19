@@ -35,7 +35,9 @@ function stripLastSegment(fqn: string): string {
 }
 
 export function extractFileInfo(tree: Parser.Tree, file: ScannedFile): FileInfo {
-  return file.language === 'java' ? extractJava(tree.rootNode, file) : extractKotlin(tree.rootNode, file)
+  return file.language === 'java'
+    ? extractJava(tree.rootNode, file)
+    : extractKotlin(tree.rootNode, file)
 }
 
 function extractJava(root: Node, file: ScannedFile): FileInfo {
@@ -107,7 +109,9 @@ function extractKotlin(root: Node, file: ScannedFile): FileInfo {
       const fqn = id.text
       const isWildcard = header.namedChildren.some((c) => c.type === 'wildcard_import')
       const line = header.startPosition.row + 1
-      imports.push(isWildcard ? { kind: 'package', target: fqn, line } : { kind: 'type', target: fqn, line })
+      imports.push(
+        isWildcard ? { kind: 'package', target: fqn, line } : { kind: 'type', target: fqn, line }
+      )
     }
   }
 

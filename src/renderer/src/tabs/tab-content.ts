@@ -11,7 +11,11 @@ export interface TabContentActions {
  * - 완료 → 통계 패널(좌상단 코너, 그래프 위)
  * 그래프 캔버스 자체는 GraphView가 관리한다. (03 §2)
  */
-export function renderOverlay(host: HTMLElement, store: TabStore, actions: TabContentActions): void {
+export function renderOverlay(
+  host: HTMLElement,
+  store: TabStore,
+  actions: TabContentActions
+): void {
   const active = store.getActive()
   host.innerHTML = ''
 

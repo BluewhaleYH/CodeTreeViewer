@@ -5,26 +5,16 @@ import cytoscape, {
   type StylesheetStyle
 } from 'cytoscape'
 import type { CodeGraph } from '../../../shared/graph'
-import type { TabState } from '../tabs/tab-store'
+import type { TabState, ViewMode } from '../tabs/tab-store'
 import { toCytoscapeElements } from './to-cytoscape'
+import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
 
 /**
- * 그래프 캔버스(Cytoscape) 생명주기 관리. (03 §2)
- * 매 렌더마다 재생성하지 않고, 활성 탭의 그래프가 바뀔 때만 다시 그린다.
- * 팬/줌/드래그는 Cytoscape 기본 동작으로 제공된다.
- * 관계도(태양계형)는 방사형(concentric) 배치 — 연결이 많은 노드를 중심에 둔다. (M5_3, 03 §3)
- * 트리 뷰는 M5_4, 선택 노드 중심 궤도화는 M6, 영역 색상은 M6.
+ * 그래프 캔버스(Cytoscape) 생명주기 관리. (03 §2~§4)
+ * - 관계도(graph): concentric 방사형(허브 중심). (M5_3, §3)
+ * - 트리(tree): breadthfirst 계층 배치 + 노드 탭으로 접기/펼치기. (M5_4, §4)
+ * 활성 탭/뷰 모드가 바뀔 때만 다시 그린다. 팬/줌/드래그는 Cytoscape 기본.
  */
-
-/** 관계도(태양계형) 방사형 레이아웃: degree(연결 수)가 클수록 중심. (03 §3) */
-const radialLayout: LayoutOptions = {
-  name: 'concentric',
-  concentric: (node: NodeSingular) => node.degree(false),
-  levelWidth: () => 1,
-  minNodeSpacing: 28,
-  spacingFactor: 1.1,
-  animate: false
-}
 
 const GRAPH_STYLE: StylesheetStyle[] = [
   {
@@ -42,12 +32,12 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     }
   },
   {
-    selector: 'node[kind="function"]',
-    style: { 'background-color': '#6a737d', width: 7, height: 7 }
-  },
-  {
     selector: 'node[external="true"]',
     style: { 'background-color': '#555a60', shape: 'diamond', width: 10, height: 10 }
+  },
+  {
+    selector: 'node.collapsed',
+    style: { 'border-width': 2, 'border-color': '#e2b341' }
   },
   {
     selector: 'edge',
@@ -62,41 +52,100 @@ const GRAPH_STYLE: StylesheetStyle[] = [
   }
 ]
 
+/** 관계도(태양계형) 방사형: degree가 클수록 중심. (03 §3) */
+const radialLayout: LayoutOptions = {
+  name: 'concentric',
+  concentric: (node: NodeSingular) => node.degree(false),
+  levelWidth: () => 1,
+  minNodeSpacing: 28,
+  spacingFactor: 1.1,
+  animate: false
+}
+
+/** 트리(계층) 배치: 부모(import 하는 쪽)가 위, 자식이 아래. (03 §4) */
+const treeLayout: LayoutOptions = {
+  name: 'breadthfirst',
+  directed: true,
+  spacingFactor: 1.0,
+  grid: false,
+  animate: false
+}
+
+function layoutFor(mode: ViewMode): LayoutOptions {
+  return mode === 'tree' ? treeLayout : radialLayout
+}
+
 export class GraphView {
   private cy: Core | null = null
-  private currentTabId: string | null = null
+  private currentKey: string | null = null
+  private childAdjacency: Map<string, string[]> = new Map()
+  private readonly collapsed = new Set<string>()
 
   constructor(private readonly host: HTMLElement) {}
 
-  /** 활성 탭의 그래프를 동기화한다. 같은 탭이면 재생성하지 않는다. */
+  /** 활성 탭/뷰 모드의 그래프를 동기화한다. 같은 키면 재생성하지 않는다. */
   sync(tab: TabState | null): void {
     const graph = tab && tab.analysis.status === 'done' ? tab.analysis.graph : null
     if (!tab || !graph || tab.projectPath === null) {
       this.clear()
       return
     }
-    if (this.currentTabId === tab.id && this.cy) return
-    this.currentTabId = tab.id
-    this.draw(graph)
+    const key = `${tab.id}:${tab.view.mode}`
+    if (this.currentKey === key && this.cy) return
+    this.currentKey = key
+    this.draw(graph, tab.view.mode)
   }
 
-  private draw(graph: CodeGraph): void {
+  private draw(graph: CodeGraph, mode: ViewMode): void {
     this.destroyCy()
     this.host.style.display = 'block'
+    this.collapsed.clear()
+    this.childAdjacency = buildChildAdjacency(graph)
+
     this.cy = cytoscape({
       container: this.host,
       elements: toCytoscapeElements(graph),
       style: GRAPH_STYLE,
-      layout: radialLayout,
+      layout: layoutFor(mode),
       wheelSensitivity: 0.2,
       minZoom: 0.05,
       maxZoom: 4
+    })
+
+    if (mode === 'tree') this.enableCollapse()
+  }
+
+  /** 트리 모드: 노드 탭 → 자손 접기/펼치기. (03 §4) */
+  private enableCollapse(): void {
+    const cy = this.cy
+    if (!cy) return
+    cy.on('tap', 'node', (event) => {
+      const id = event.target.id()
+      if (this.collapsed.has(id)) this.collapsed.delete(id)
+      else this.collapsed.add(id)
+      event.target.toggleClass('collapsed', this.collapsed.has(id))
+      this.applyVisibility()
+    })
+  }
+
+  private applyVisibility(): void {
+    const cy = this.cy
+    if (!cy) return
+    const hidden = hiddenNodeIds(this.collapsed, this.childAdjacency)
+    cy.batch(() => {
+      cy.nodes().forEach((node) => {
+        node.style('display', hidden.has(node.id()) ? 'none' : 'element')
+      })
+      cy.edges().forEach((edge) => {
+        const hide = hidden.has(edge.source().id()) || hidden.has(edge.target().id())
+        edge.style('display', hide ? 'none' : 'element')
+      })
     })
   }
 
   private clear(): void {
     this.destroyCy()
-    this.currentTabId = null
+    this.currentKey = null
     this.host.style.display = 'none'
   }
 

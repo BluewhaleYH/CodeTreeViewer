@@ -39,7 +39,13 @@ export function buildDemoGraph(): CodeGraph {
 
   const dep = (fromPath: string, toId: string): CodeGraph['edges'][number] => {
     const from = fileNodeId(fromPath)
-    return { id: `file-dependency:${from}->${toId}`, type: 'file-dependency', from, to: toId, line: null }
+    return {
+      id: `file-dependency:${from}->${toId}`,
+      type: 'file-dependency',
+      from,
+      to: toId,
+      line: null
+    }
   }
 
   const edges = [

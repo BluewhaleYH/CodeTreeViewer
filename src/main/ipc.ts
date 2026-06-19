@@ -52,15 +52,18 @@ export function registerIpcHandlers(): void {
     return { path, name: basename(path) }
   })
 
-  ipcMain.handle('analysis:run', async (event, payload: AnalyzePayload): Promise<AnalysisResult> => {
-    const parser = await getParser()
-    const result = await analyzeProject(payload.projectPath, parser, getCache(), {
-      onProgress: (progress) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('analysis:progress', { id: payload.id, progress })
+  ipcMain.handle(
+    'analysis:run',
+    async (event, payload: AnalyzePayload): Promise<AnalysisResult> => {
+      const parser = await getParser()
+      const result = await analyzeProject(payload.projectPath, parser, getCache(), {
+        onProgress: (progress) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('analysis:progress', { id: payload.id, progress })
+          }
         }
-      }
-    })
-    return { summary: result.summary, graph: result.graph }
-  })
+      })
+      return { summary: result.summary, graph: result.graph }
+    }
+  )
 }

@@ -118,7 +118,10 @@ describe('파일 의존성 그래프 (M4_2)', () => {
 describe('함수/메서드 정의 노드 (M4_4)', () => {
   it('Java 메서드를 function 노드로 추출한다(호출 엣지 없음)', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-fn-'))
-    await write('a/A.java', 'package a;\nclass A {\n  void foo() {}\n  int bar(int x) { return x; }\n}')
+    await write(
+      'a/A.java',
+      'package a;\nclass A {\n  void foo() {}\n  int bar(int x) { return x; }\n}'
+    )
 
     const { graph, summary } = await runAnalysis(root, parser)
     const fns = graph.nodes.filter((n) => n.kind === 'function')
@@ -150,11 +153,16 @@ describe('함수/메서드 정의 노드 (M4_4)', () => {
 describe('영역(Domain) 부여 (M4_5)', () => {
   it('파일/함수 노드에 영역(모듈)을 부여하고 외부는 null', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-dom-'))
-    await write('app/src/main/java/a/A.java', 'package a;\nimport ext.Lib;\nclass A {\n  void m() {}\n}')
+    await write(
+      'app/src/main/java/a/A.java',
+      'package a;\nimport ext.Lib;\nclass A {\n  void m() {}\n}'
+    )
     await write('core/src/main/java/b/B.java', 'package b;\nclass B {}')
 
     const { graph, summary } = await runAnalysis(root, parser)
-    const fileA = graph.nodes.find((n) => n.path === 'app/src/main/java/a/A.java' && n.kind === 'file')
+    const fileA = graph.nodes.find(
+      (n) => n.path === 'app/src/main/java/a/A.java' && n.kind === 'file'
+    )
     expect(fileA?.domain).toBe('app')
     const fnM = graph.nodes.find((n) => n.kind === 'function' && n.name === 'm')
     expect(fnM?.domain).toBe('app') // 소속 파일의 영역
