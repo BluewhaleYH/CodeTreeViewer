@@ -22,7 +22,9 @@ interface AnalyzePayload {
 let parserPromise: Promise<SourceParser> | null = null
 function getParser(): Promise<SourceParser> {
   if (!parserPromise) {
-    parserPromise = SourceParser.create(resolveParserConfig())
+    parserPromise = SourceParser.create(
+      resolveParserConfig({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
+    )
   }
   return parserPromise
 }
