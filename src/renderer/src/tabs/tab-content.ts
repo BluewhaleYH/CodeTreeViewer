@@ -1,4 +1,5 @@
 import type { TabState, TabStore } from './tab-store'
+import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
 
 export interface TabContentActions {
   openProject: () => void
@@ -91,6 +92,15 @@ function renderStatsPanel(tab: TabState): HTMLElement {
   stat2.textContent = `노드 파일 ${fileNodeCount} · 함수 ${summary.functionNodeCount} · 외부 ${summary.externalNodeCount} · 엣지 ${summary.edgeCount} · 영역 ${summary.domainCount}`
 
   panel.append(title, stat1, stat2)
+
+  // 대규모: 초기 뷰가 진입점 중심으로 축소됨을 안내. (M5_5, D15)
+  const renderable = summary.nodeCount - summary.functionNodeCount
+  if (renderable > DEFAULT_MAX_INITIAL_NODES) {
+    const reduced = document.createElement('div')
+    reduced.className = 'stats-panel__line muted'
+    reduced.textContent = `대규모: 진입점 중심 ${DEFAULT_MAX_INITIAL_NODES}개 표시(클릭으로 확장)`
+    panel.appendChild(reduced)
+  }
 
   if (summary.failureCount > 0) {
     const warn = document.createElement('div')

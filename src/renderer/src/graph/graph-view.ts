@@ -8,6 +8,7 @@ import type { CodeGraph } from '../../../shared/graph'
 import type { TabState, ViewMode } from '../tabs/tab-store'
 import { toCytoscapeElements } from './to-cytoscape'
 import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
+import { selectInitialView } from './initial-view'
 
 /**
  * 그래프 캔버스(Cytoscape) 생명주기 관리. (03 §2~§4)
@@ -100,11 +101,14 @@ export class GraphView {
     this.destroyCy()
     this.host.style.display = 'block'
     this.collapsed.clear()
-    this.childAdjacency = buildChildAdjacency(graph)
+
+    // 초기 뷰: 소규모 전체 / 대규모 진입점 중심. (M5_5, 03 §5.1)
+    const view = selectInitialView(graph)
+    this.childAdjacency = buildChildAdjacency(view.graph)
 
     this.cy = cytoscape({
       container: this.host,
-      elements: toCytoscapeElements(graph),
+      elements: toCytoscapeElements(view.graph),
       style: GRAPH_STYLE,
       layout: layoutFor(mode),
       wheelSensitivity: 0.2,
