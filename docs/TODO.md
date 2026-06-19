@@ -89,7 +89,7 @@
 ## M9 — 배포 파이프라인 (MVP 마감)
 
 - [x] `docs/DEPLOY.md` 작성(빌드/배포/업데이트 상세) (CLAUDE.md §9, `01` §9)
-- [ ] Linux 빌드(AppImage + deb) (CLAUDE.md §9)
+- [x] Linux 빌드(AppImage + deb) (CLAUDE.md §9)
 - [ ] Windows 빌드(포터블 zip / nsis) (CLAUDE.md §9)
 - [ ] 자동 업데이트 설계 반영 (`01` §9)
 
