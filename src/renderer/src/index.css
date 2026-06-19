@@ -177,6 +177,44 @@ body {
   color: #fff;
 }
 
+/* 영역 색상 범례 (좌하단) */
+.legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(37, 37, 38, 0.85);
+  pointer-events: auto;
+  max-height: 40%;
+  overflow-y: auto;
+}
+
+.legend__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.legend__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend__swatch--diamond {
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.legend__label {
+  color: var(--fg-muted);
+}
+
 .stats-panel__line {
   font-size: 13px;
   line-height: 1.5;

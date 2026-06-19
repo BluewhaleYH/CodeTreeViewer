@@ -1,5 +1,7 @@
 import type { TabState, TabStore } from './tab-store'
 import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
+import { assignDomainColors } from '../graph/domain-colors'
+import type { CodeGraph } from '../../../shared/graph'
 
 export interface TabContentActions {
   openProject: () => void
@@ -31,11 +33,50 @@ export function renderOverlay(
     host.className = 'ws-overlay ws-overlay--corner'
     host.appendChild(renderStatsPanel(active))
     host.appendChild(renderViewToggle(active, store))
+    if (active.analysis.graph) host.appendChild(renderLegend(active.analysis.graph))
     return
   }
 
   host.className = 'ws-overlay ws-overlay--center'
   host.appendChild(renderStatus(active))
+}
+
+/** 영역(Domain) 색상 범례. (03 §6, M6_4) */
+function renderLegend(graph: CodeGraph): HTMLElement {
+  const wrap = document.createElement('div')
+  wrap.className = 'legend'
+
+  const colors = assignDomainColors(graph)
+  for (const [domain, color] of colors) {
+    const row = document.createElement('div')
+    row.className = 'legend__row'
+
+    const swatch = document.createElement('span')
+    swatch.className = 'legend__swatch'
+    swatch.style.backgroundColor = color
+
+    const label = document.createElement('span')
+    label.className = 'legend__label'
+    label.textContent = domain
+
+    row.append(swatch, label)
+    wrap.appendChild(row)
+  }
+
+  if (graph.nodes.some((n) => n.external)) {
+    const row = document.createElement('div')
+    row.className = 'legend__row'
+    const swatch = document.createElement('span')
+    swatch.className = 'legend__swatch legend__swatch--diamond'
+    swatch.style.backgroundColor = '#555a60'
+    const label = document.createElement('span')
+    label.className = 'legend__label'
+    label.textContent = '외부'
+    row.append(swatch, label)
+    wrap.appendChild(row)
+  }
+
+  return wrap
 }
 
 /** 관계도 ↔ 트리 전환 토글. (03 §5.2, M6_1) */
