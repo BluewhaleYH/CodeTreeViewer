@@ -1,4 +1,4 @@
-# 패키징 설정 (상세/검증은 M9 — docs/DEPLOY.md). M0에서는 스크립트가 동작하도록 기본 골격만 둔다.
+# 패키징 설정. 상세/결정은 docs/DEPLOY.md.
 appId: com.codetreeviewer.app
 productName: CodeTreeViewer
 directories:
@@ -6,12 +6,31 @@ directories:
   buildResources: resources
 files:
   - out/**
+# tree-sitter wasm은 런타임에 파일 경로로 로드하므로 asar 밖 리소스로 복사한다. (DEPLOY.md §5)
+extraResources:
+  - from: node_modules/web-tree-sitter/tree-sitter.wasm
+    to: wasm/tree-sitter.wasm
+  - from: node_modules/tree-sitter-wasms/out/tree-sitter-java.wasm
+    to: wasm/tree-sitter-java.wasm
+  - from: node_modules/tree-sitter-wasms/out/tree-sitter-kotlin.wasm
+    to: wasm/tree-sitter-kotlin.wasm
+# 자동 업데이트 피드: GitHub Releases. (DEPLOY.md §4)
+publish:
+  provider: github
+  owner: BluewhaleYH
+  repo: CodeTreeViewer
 linux:
   target:
     - AppImage
     - deb
   category: Development
+  maintainer: BluewhaleYH <bluewhaleyh@gmail.com>
+  synopsis: 코드 파일/함수 관계 시각화 도구
 win:
   target:
     - nsis
     - zip
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

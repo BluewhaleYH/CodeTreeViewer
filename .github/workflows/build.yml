@@ -1,0 +1,31 @@
+name: build
+
+# 패키징 산출물을 멀티 OS 러너에서 빌드한다. (DEPLOY.md §6, 배포-2)
+# main push / PR / 수동 실행 시 빌드 검증(퍼블리시 없음). 태그 릴리즈 퍼블리시는 M9_4에서 추가.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Linux (AppImage + deb)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Package (AppImage + deb)
+        run: npx electron-builder --linux AppImage deb --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
