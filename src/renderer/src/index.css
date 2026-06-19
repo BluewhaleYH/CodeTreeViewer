@@ -165,11 +165,92 @@ body {
   filter: brightness(1.15);
 }
 
+/* 필터 바(레벨/태그/텍스트/정규식). (04 §4, M11_3) */
+.logview__filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.logview__levels {
+  display: flex;
+  gap: 2px;
+}
+
+.logview__level {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-tab);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0.4;
+}
+
+.logview__level.is-on {
+  opacity: 1;
+  color: var(--fg);
+}
+
+.logview__level.level-W.is-on {
+  border-color: #c8a23a;
+  color: #e2b341;
+}
+
+.logview__level.level-E.is-on,
+.logview__level.level-F.is-on {
+  border-color: #b4534b;
+  color: #e06c75;
+}
+
+.logview__tag {
+  width: 84px;
+}
+
+.logview__textq {
+  flex: 1;
+  min-width: 80px;
+}
+
+.logview__filter input[type='text'] {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.logview__regex {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
 .logview__body {
   flex: 1;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
+}
+
+/* 레벨별 라인 색조(경고/오류 강조). (M11_3) */
+.logview__row.level-W .logview__text {
+  color: #e2b341;
+}
+
+.logview__row.level-E .logview__text,
+.logview__row.level-F .logview__text {
+  color: #e06c75;
 }
 
 /* 가상 스크롤: 보이는 행만 렌더, 위/아래 패딩으로 전체 높이 유지. (M11_2) */
