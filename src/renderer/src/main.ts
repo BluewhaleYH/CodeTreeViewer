@@ -6,6 +6,9 @@ import { GraphView } from './graph/graph-view'
 import { SearchView } from './search/search-view'
 import { buildSearchIndex, focusTargetId } from './search/search-index'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
+import { LogView } from './log/log-view'
+import { splitLines } from './log/log-lines'
+import { DEMO_LOG_LINES } from './log/demo-log'
 import { functionNodeId } from '../../shared/graph'
 
 const root = document.getElementById('app')
@@ -15,20 +18,24 @@ if (root) {
     <div class="layout">
       <header class="tabbar" id="tabbar"></header>
       <main class="workspace">
-        <div class="ws-graph" id="ws-graph"></div>
-        <div class="ws-overlay" id="ws-overlay"></div>
-        <div class="ws-search" id="ws-search"></div>
-        <div class="session-notice" id="session-notice" hidden></div>
+        <div class="ws-log" id="ws-log" hidden></div>
+        <div class="ws-main" id="ws-main">
+          <div class="ws-graph" id="ws-graph"></div>
+          <div class="ws-overlay" id="ws-overlay"></div>
+          <div class="ws-search" id="ws-search"></div>
+          <div class="session-notice" id="session-notice" hidden></div>
+        </div>
       </main>
     </div>
   `
 
   const tabbar = root.querySelector<HTMLElement>('#tabbar')
+  const wsLog = root.querySelector<HTMLElement>('#ws-log')
   const wsGraph = root.querySelector<HTMLElement>('#ws-graph')
   const wsOverlay = root.querySelector<HTMLElement>('#ws-overlay')
   const wsSearch = root.querySelector<HTMLElement>('#ws-search')
 
-  if (tabbar && wsGraph && wsOverlay && wsSearch) {
+  if (tabbar && wsLog && wsGraph && wsOverlay && wsSearch) {
     const store = new TabStore()
     const selectNode = (nodeId: string | null): void => {
       const activeId = store.getActiveId()
@@ -48,6 +55,11 @@ if (root) {
       if (entry.kind === 'function') startBacktrace(entry.id)
       else selectNode(focusTargetId(entry))
     })
+    const closeLog = (): void => {
+      const activeId = store.getActiveId()
+      if (activeId) store.closeLog(activeId)
+    }
+    const logView = new LogView(wsLog, { onClose: closeLog })
 
     const isCapture = window.codetree.captureMode
 
@@ -71,6 +83,17 @@ if (root) {
       })
       const active = store.getActive()
       graphView.sync(active)
+      // 로그 분석: 열린 로그가 있으면 좌측 로그 패널 표시. (04 §2, M11_1)
+      if (active && active.log) {
+        wsLog.hidden = false
+        logView.setDump(`${active.id}:${active.log.path}`, {
+          name: active.log.name,
+          lines: active.log.lines
+        })
+      } else {
+        wsLog.hidden = true
+        logView.setDump(null, null)
+      }
       // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
       if (active && active.analysis.status === 'done' && active.analysis.graph) {
         wsSearch.style.display = 'block'
@@ -102,6 +125,19 @@ if (root) {
       }
     }
 
+    // 로그 덤프 열기: 활성 탭에 로드(없으면 새 탭). (04 §2, M11_1)
+    const openLog = async (): Promise<void> => {
+      const result = await window.codetree.openLogDialog()
+      if (!result) return
+      let activeId = store.getActiveId()
+      if (!activeId) activeId = store.addEmptyTab().id
+      store.openLog(activeId, {
+        path: result.path,
+        name: result.name,
+        lines: splitLines(result.content)
+      })
+    }
+
     const noticeHost = root.querySelector<HTMLElement>('#session-notice')
     // 비차단 알림 배너(세션 손상·업데이트 등). 사용자가 닫을 수 있으며 동작을 막지 않는다. (01 §10, DEPLOY.md §4)
     const SESSION_CORRUPTED_MSG = '이전 세션 파일이 손상되어 백업본 또는 초기 상태로 복원했습니다.'
@@ -126,6 +162,7 @@ if (root) {
 
     window.codetree.onMenuAction((action) => {
       if (action === 'open-project') void openProject()
+      else if (action === 'open-log') void openLog()
       else if (action === 'new-tab') store.addEmptyTab()
       else if (action === 'close-tab') {
         const active = store.getActiveId()
@@ -142,6 +179,12 @@ if (root) {
         store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
         // 역추적 데모: Repository.load의 호출처 체인 표시. (M10_2)
         store.setBacktrace(demo.id, functionNodeId('core/src/main/kotlin/Repository.kt', 'load'))
+        // 로그 분석 데모: 좌측 로그 패널. (M11_1)
+        store.openLog(demo.id, {
+          path: '/logs/app.logcat',
+          name: 'app.logcat',
+          lines: DEMO_LOG_LINES
+        })
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
         searchView.seedHistory(['Repository', 'ViewModel', 'load'])

@@ -2,20 +2,22 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { AnalysisProgress, AnalysisResult } from '../shared/analysis'
 import type { PersistedTab, SessionNotice, SessionState } from '../shared/session'
 import type { UpdateNotice } from '../shared/update'
+import type { LogOpenResult } from '../shared/log'
 
 export interface ProjectSelection {
   path: string
   name: string
 }
 
-export type MenuAction = 'open-project' | 'new-tab' | 'close-tab'
+export type MenuAction = 'open-project' | 'new-tab' | 'close-tab' | 'open-log'
 
 let analysisCounter = 0
 
 const MENU_CHANNELS: Record<string, MenuAction> = {
   'menu:open-project': 'open-project',
   'menu:new-tab': 'new-tab',
-  'menu:close-tab': 'close-tab'
+  'menu:close-tab': 'close-tab',
+  'menu:open-log': 'open-log'
 }
 
 /**
@@ -79,7 +81,10 @@ const api = {
     const listener = (_event: IpcRendererEvent, notice: UpdateNotice): void => handler(notice)
     ipcRenderer.on('update:notice', listener)
     return () => ipcRenderer.removeListener('update:notice', listener)
-  }
+  },
+
+  /** 로그 덤프 파일 열기 다이얼로그. 취소 시 null. (04 §2, M11_1) */
+  openLogDialog: (): Promise<LogOpenResult | null> => ipcRenderer.invoke('log:open')
 }
 
 contextBridge.exposeInMainWorld('codetree', api)

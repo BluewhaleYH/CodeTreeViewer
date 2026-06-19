@@ -32,6 +32,13 @@ export interface TabAnalysisState {
   error: string | null
 }
 
+/** 탭에 열린 로그 덤프(전환 탐색 상태, 세션 미영속). (04 §2, M11_1) */
+export interface TabLogState {
+  path: string
+  name: string
+  lines: string[]
+}
+
 export interface TabState {
   id: string
   projectPath: string | null
@@ -40,6 +47,8 @@ export interface TabState {
   view: TabViewState
   /** 탭별 분석 상태/결과. (02 §3) */
   analysis: TabAnalysisState
+  /** 열린 로그 덤프. null이면 로그 분석 비활성. (04 §2, M11) */
+  log: TabLogState | null
 }
 
 const DEFAULT_VIEW_MODE: ViewMode = 'graph'
@@ -61,7 +70,8 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     projectPath,
     projectName,
     view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null, backtrace: null },
-    analysis: createAnalysisState()
+    analysis: createAnalysisState(),
+    log: null
   }
 }
 
@@ -150,6 +160,22 @@ export class TabStore {
     const tab = this.tabs.find((t) => t.id === id)
     if (!tab || tab.view.backtrace === null) return
     tab.view = { ...tab.view, backtrace: null }
+    this.emit()
+  }
+
+  /** 탭에 로그 덤프를 연다(로그 분석 활성화). (04 §2, M11_1) */
+  openLog(id: string, log: TabLogState): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab) return
+    tab.log = log
+    this.emit()
+  }
+
+  /** 로그 덤프를 닫는다(로그 분석 비활성화). (M11_1) */
+  closeLog(id: string): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || tab.log === null) return
+    tab.log = null
     this.emit()
   }
 
