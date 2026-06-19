@@ -92,7 +92,7 @@ if (root) {
 
     render()
 
-    // 검색 결과 시연(렌더 후 인덱스가 설정된 뒤).
-    if (isCapture) searchView.seedQuery('kt')
+    // 검색 히스토리 시연(빈 입력 → 최근 검색어).
+    if (isCapture) searchView.seedHistory(['Repository', 'ViewModel', 'load'])
   }
 }
