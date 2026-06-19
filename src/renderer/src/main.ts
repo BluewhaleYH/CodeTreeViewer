@@ -3,6 +3,7 @@ import { TabStore } from './tabs/tab-store'
 import { renderTabBar } from './tabs/tab-bar'
 import { renderOverlay } from './tabs/tab-content'
 import { GraphView } from './graph/graph-view'
+import { DEFAULT_MAX_INITIAL_NODES } from './graph/initial-view'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
 
 const root = document.getElementById('app')
@@ -24,7 +25,9 @@ if (root) {
 
   if (tabbar && wsGraph && wsOverlay) {
     const store = new TabStore()
-    const graphView = new GraphView(wsGraph)
+    // 검수 모드에서는 작은 임계치로 초기 뷰 축소 + 확장 가능 표시를 시연한다.
+    const maxInitialNodes = window.codetree.captureMode ? 5 : DEFAULT_MAX_INITIAL_NODES
+    const graphView = new GraphView(wsGraph, maxInitialNodes)
 
     const render = (): void => {
       renderTabBar(tabbar, store)
