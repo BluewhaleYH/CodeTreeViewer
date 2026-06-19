@@ -23,8 +23,10 @@ export interface AnalysisSummary {
   failureCount: number
   byLanguage: Record<SourceLanguage, number>
   skippedDirCount: number
-  /** 그래프 노드 수(파일 노드 + 외부 노드). (02 §4) */
+  /** 그래프 노드 수(파일 + 함수 + 외부 노드). (02 §4) */
   nodeCount: number
+  /** 함수/메서드 정의 노드 수(검색·라벨용). (02 §4.1, D7) */
+  functionNodeCount: number
   /** 외부/미해결 노드 수. (02 §9) */
   externalNodeCount: number
   /** 그래프 엣지 수(파일 의존성 등). (02 §4) */

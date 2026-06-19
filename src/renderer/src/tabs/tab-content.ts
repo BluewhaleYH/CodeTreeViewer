@@ -66,9 +66,10 @@ function renderAnalysis(tab: TabState): HTMLElement {
     stat.textContent = `파일 ${summary.fileCount}개 · Java ${summary.byLanguage.java} · Kotlin ${summary.byLanguage.kotlin}`
     el.appendChild(stat)
 
+    const fileNodeCount = summary.nodeCount - summary.functionNodeCount - summary.externalNodeCount
     const graphStat = document.createElement('p')
     graphStat.className = 'analysis__stat analysis__substat'
-    graphStat.textContent = `의존성: 노드 ${summary.nodeCount} · 엣지 ${summary.edgeCount} · 외부 ${summary.externalNodeCount}`
+    graphStat.textContent = `의존성: 파일 ${fileNodeCount} · 함수 ${summary.functionNodeCount} · 외부 ${summary.externalNodeCount} · 엣지 ${summary.edgeCount}`
     el.appendChild(graphStat)
 
     if (summary.failureCount > 0) {

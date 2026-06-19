@@ -1,6 +1,6 @@
 import { basename } from 'node:path'
 import { GraphBuilder } from './graph-builder'
-import { externalNodeId, fileNodeId, type CodeGraph } from '../../shared/graph'
+import { externalNodeId, fileNodeId, functionNodeId, type CodeGraph } from '../../shared/graph'
 import type { ScannedFile } from './scanner'
 import type { FileInfo, ImportRef } from './extract'
 
@@ -38,6 +38,22 @@ export function buildFileGraph(
       external: false,
       line: null
     })
+  }
+
+  // 1-1) 함수/메서드 정의 노드(검색·라벨용, 호출 엣지 없음). (M4_4, D7)
+  for (const info of infos) {
+    for (const fn of info.functions) {
+      builder.addNode({
+        id: functionNodeId(info.file.relativePath, fn.name),
+        kind: 'function',
+        name: fn.name,
+        path: info.file.relativePath,
+        language: info.file.language,
+        domain: null,
+        external: false,
+        line: fn.line
+      })
+    }
   }
 
   // 2) 인덱스 구축: FQN(타입) → 파일, 패키지 → 파일 목록.

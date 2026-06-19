@@ -151,6 +151,7 @@ describe('TabStore — 분석 상태 (M3_3)', () => {
     byLanguage: { java: 2, kotlin: 1 },
     skippedDirCount: 0,
     nodeCount: 3,
+    functionNodeCount: 0,
     externalNodeCount: 0,
     edgeCount: 2,
     failures: []

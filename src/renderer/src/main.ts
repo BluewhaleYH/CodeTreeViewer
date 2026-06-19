@@ -70,7 +70,8 @@ if (root) {
         failureCount: 2,
         byLanguage: { java: 90, kotlin: 36 },
         skippedDirCount: 3,
-        nodeCount: 145,
+        nodeCount: 685,
+        functionNodeCount: 540,
         externalNodeCount: 17,
         edgeCount: 214,
         failures: [
