@@ -1,3 +1,5 @@
+import type { LogSite } from '../../../shared/log'
+
 /** 자체 검수(스크린샷)용 데모 logcat 라인. 실제 로그와 무관. (M11_1) */
 export const DEMO_LOG_LINES: string[] = [
   '06-19 14:22:01.118  1234  1300 D MainActivity: onCreate()',
@@ -10,4 +12,24 @@ export const DEMO_LOG_LINES: string[] = [
   '06-19 14:22:01.910  1234  1305 I Repository: load() ok (cached)',
   '06-19 14:22:01.915  1234  1300 D LoginViewModel: login() success',
   '06-19 14:22:02.001  1234  1300 V Logger: flush() 3 events'
+]
+
+/** 데모 로그 호출 위치(역추적 다중 후보 시연용). 선택 라인(인덱스 5)의 메시지와 매칭된다. */
+export const DEMO_LOG_SITES: LogSite[] = [
+  {
+    file: 'core/src/main/kotlin/Repository.kt',
+    line: 14,
+    level: 'E',
+    tag: 'Repository',
+    format: '"load() failed: $e"',
+    pattern: '^load\\(\\) failed: .*?$'
+  },
+  {
+    file: 'app/src/main/kotlin/LoginViewModel.kt',
+    line: 31,
+    level: 'E',
+    tag: null,
+    format: '"load() failed: " + reason',
+    pattern: '^load\\(\\) failed: .*?$'
+  }
 ]

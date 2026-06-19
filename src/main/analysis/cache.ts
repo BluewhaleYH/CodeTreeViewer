@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { ScannedFile } from './scanner'
 import type { AnalysisSummary } from '../../shared/analysis'
 import type { CodeGraph } from '../../shared/graph'
+import type { LogSite } from '../../shared/log'
 
 /**
  * 분석 결과 캐시. (02 §7.2)
@@ -12,8 +13,8 @@ import type { CodeGraph } from '../../shared/graph'
  * 저장 위치는 세션과 분리(userData). 사용자 프로젝트 폴더는 오염하지 않는다. (01 §6)
  */
 
-/** 분석 로직이 바뀌면 올린다(기존 캐시 무효화). M4_5 영역 분류 추가로 5. */
-export const ANALYZER_VERSION = 5
+/** 분석 로직이 바뀌면 올린다(기존 캐시 무효화). M4_5=5, M11_4 로그 호출 추출=6. */
+export const ANALYZER_VERSION = 6
 
 export interface CacheEntry {
   root: string
@@ -21,6 +22,8 @@ export interface CacheEntry {
   fingerprint: string
   summary: AnalysisSummary
   graph: CodeGraph
+  /** 로그→코드 역추적용 호출 위치. (04 §5, M11_4) */
+  logSites?: LogSite[]
 }
 
 /** 스캔된 파일들의 stat(mtime+size) 지문. 파일 목록/내용 변화 시 값이 바뀐다. */

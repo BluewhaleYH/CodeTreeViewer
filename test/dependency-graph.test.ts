@@ -218,6 +218,61 @@ describe('함수 호출 그래프 (M10_1)', () => {
   })
 })
 
+describe('로그 호출 추출 (M11_4)', () => {
+  it('Java Log.x(TAG, "msg")에서 로그 호출 위치를 추출한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-log-'))
+    await write(
+      'a/A.java',
+      'package a;\nimport android.util.Log;\nclass A {\n  void m() {\n    Log.e("Repo", "load() failed: " + e);\n  }\n}'
+    )
+
+    const { logSites } = await runAnalysis(root, parser)
+    expect(logSites).toHaveLength(1)
+    expect(logSites[0].file).toBe('a/A.java')
+    expect(logSites[0].level).toBe('E')
+    expect(logSites[0].tag).toBe('Repo')
+    expect(new RegExp(logSites[0].pattern).test('load() failed: timeout')).toBe(true)
+  })
+
+  it('포맷 지정자(%s)를 가변부로 패턴화한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-log-'))
+    await write(
+      'a/A.java',
+      'package a;\nimport android.util.Log;\nclass A {\n  void m() { Log.d("T", "user %s logged in"); }\n}'
+    )
+
+    const { logSites } = await runAnalysis(root, parser)
+    expect(logSites).toHaveLength(1)
+    const re = new RegExp(logSites[0].pattern)
+    expect(re.test('user alice logged in')).toBe(true)
+    expect(re.test('user bob logged in')).toBe(true)
+  })
+
+  it('정적 텍스트가 빈약한 로그(메시지가 변수뿐)는 후보로 만들지 않는다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-log-'))
+    await write(
+      'a/A.java',
+      'package a;\nimport android.util.Log;\nclass A {\n  void m() { Log.d("T", msg); }\n}'
+    )
+
+    const { logSites } = await runAnalysis(root, parser)
+    expect(logSites).toHaveLength(0)
+  })
+
+  it('Kotlin Log 호출도 추출한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-log-'))
+    await write(
+      'a/Main.kt',
+      'package a\nimport android.util.Log\nfun m() {\n  Log.w("Net", "retry failed again")\n}'
+    )
+
+    const { logSites } = await runAnalysis(root, parser)
+    expect(logSites).toHaveLength(1)
+    expect(logSites[0].level).toBe('W')
+    expect(new RegExp(logSites[0].pattern).test('retry failed again')).toBe(true)
+  })
+})
+
 describe('영역(Domain) 부여 (M4_5)', () => {
   it('파일/함수 노드에 영역(모듈)을 부여하고 외부는 null', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-dom-'))

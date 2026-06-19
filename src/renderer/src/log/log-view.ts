@@ -15,6 +15,8 @@ export interface LogDumpData {
 
 export interface LogViewCallbacks {
   onClose: () => void
+  /** 라인 선택(역추적 후보 표시). (04 §5, M11_4) */
+  onSelectLine: (index: number, raw: string) => void
 }
 
 /** 행 높이(px). CSS .logview__row 와 반드시 일치해야 한다. */
@@ -29,6 +31,8 @@ export class LogView {
 
   /** 필터를 통과한 원본 라인 인덱스. */
   private visible: number[] = []
+  /** 선택된 원본 라인 인덱스(역추적). */
+  private selectedLine: number | null = null
   private readonly activeLevels = new Set<LogLevel>(ALL_LEVELS)
   private tagQuery = ''
   private textQuery = ''
@@ -121,9 +125,17 @@ export class LogView {
     this.lines = dump?.lines ?? []
     this.name = dump?.name ?? ''
     this.parsed = dump ? parseAll(this.lines) : []
+    this.selectedLine = null
     this.host.classList.toggle('is-active', Boolean(dump))
     ;(this.host.querySelector('.logview__title') as HTMLElement).textContent = this.name
     this.applyFilter()
+  }
+
+  /** 선택 라인을 외부(store)와 동기화한다. 같으면 무시. */
+  setSelectedLine(index: number | null): void {
+    if (this.selectedLine === index) return
+    this.selectedLine = index
+    this.renderWindow()
   }
 
   /** 필터를 적용해 가시 인덱스를 재계산하고 다시 그린다. */
@@ -156,6 +168,10 @@ export class LogView {
       const fields = this.parsed[originalIndex]
       const row = document.createElement('div')
       row.className = fields ? `logview__row level-${fields.level}` : 'logview__row'
+      if (originalIndex === this.selectedLine) row.classList.add('is-selected')
+      row.addEventListener('click', () =>
+        this.callbacks.onSelectLine(originalIndex, this.lines[originalIndex])
+      )
       const ln = document.createElement('span')
       ln.className = 'logview__ln'
       ln.textContent = String(originalIndex + 1)

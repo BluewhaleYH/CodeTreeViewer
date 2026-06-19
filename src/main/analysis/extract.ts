@@ -1,5 +1,6 @@
 import type Parser from 'web-tree-sitter'
 import type { ScannedFile } from './scanner'
+import { buildLogPattern, type LogSite, type LogTemplateSeg } from '../../shared/log'
 
 /**
  * 파스 트리에서 패키지/import/최상위 선언명을 추출한다. (02 §3, §4)
@@ -33,7 +34,23 @@ export interface FileInfo {
   imports: ImportRef[]
   /** 함수/메서드 정의(검색·라벨용, 호출 관계 아님). (02 §1, §4.1, D7) */
   functions: FunctionDef[]
+  /** 소스 내 로그 호출 위치(로그→코드 역추적용). (04 §5, M11_4) */
+  logSites: LogSite[]
 }
+
+/** 로그 호출로 인식할 리시버(마지막 식별자 기준). (결정: Log.* + 흔한 프레임워크) */
+const LOG_RECEIVERS = new Set(['Log', 'Slog', 'Timber'])
+/** 로그 메서드명 → 레벨. */
+const LOG_METHODS: Record<string, string> = {
+  v: 'V',
+  d: 'D',
+  i: 'I',
+  w: 'W',
+  e: 'E',
+  wtf: 'F'
+}
+/** Java/Kotlin 포맷 지정자(%s, %d, %02x, %1$s 등) → 가변부. */
+const FORMAT_SPECIFIER = /%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?[a-zA-Z]/g
 
 type Node = Parser.SyntaxNode
 
@@ -136,7 +153,14 @@ function extractJava(root: Node, file: ScannedFile): FileInfo {
     if (fn) fn.calls.push({ name, line: call.startPosition.row + 1 })
   }
 
-  return { file, packageName, topLevelNames, imports, functions }
+  return {
+    file,
+    packageName,
+    topLevelNames,
+    imports,
+    functions,
+    logSites: extractJavaLogSites(root, file)
+  }
 }
 
 function extractKotlin(root: Node, file: ScannedFile): FileInfo {
@@ -190,5 +214,147 @@ function extractKotlin(root: Node, file: ScannedFile): FileInfo {
     if (fn) fn.calls.push({ name, line: call.startPosition.row + 1 })
   }
 
-  return { file, packageName, topLevelNames, imports, functions }
+  return {
+    file,
+    packageName,
+    topLevelNames,
+    imports,
+    functions,
+    logSites: extractKotlinLogSites(root, file)
+  }
+}
+
+// --- 로그 호출 추출(로그→코드 역추적). (04 §5, M11_4) ---
+
+function lastIdentifier(text: string): string {
+  const i = text.lastIndexOf('.')
+  return i >= 0 ? text.slice(i + 1) : text
+}
+
+function stripQuotes(text: string): string {
+  return text.length >= 2 && (text.startsWith('"') || text.startsWith("'"))
+    ? text.slice(1, -1)
+    : text
+}
+
+/** 리터럴 텍스트를 포맷 지정자(%s 등) 기준으로 정적/가변 세그먼트로 나눈다. */
+function literalSegs(inner: string): LogTemplateSeg[] {
+  const segs: LogTemplateSeg[] = []
+  let last = 0
+  FORMAT_SPECIFIER.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = FORMAT_SPECIFIER.exec(inner)) !== null) {
+    if (m.index > last) segs.push({ lit: inner.slice(last, m.index) })
+    segs.push({ wildcard: true })
+    last = m.index + m[0].length
+  }
+  if (last < inner.length) segs.push({ lit: inner.slice(last) })
+  return segs
+}
+
+/** Java 메시지 인자 → 템플릿 세그먼트(문자열 리터럴/문자열 결합 처리). */
+function javaMessageTemplate(node: Node): LogTemplateSeg[] {
+  if (node.type === 'string_literal') return literalSegs(stripQuotes(node.text))
+  if (node.type === 'binary_expression') {
+    const op = node.childForFieldName('operator')?.text
+    const left = node.childForFieldName('left')
+    const right = node.childForFieldName('right')
+    if (op === '+' && left && right) {
+      return [...javaMessageTemplate(left), ...javaMessageTemplate(right)]
+    }
+  }
+  return [{ wildcard: true }]
+}
+
+/** Kotlin 문자열 리터럴 → 템플릿 세그먼트(content=정적, interpolation=가변). */
+function kotlinStringTemplate(node: Node): LogTemplateSeg[] {
+  const kids = node.namedChildren
+  if (kids.length === 0) return literalSegs(stripQuotes(node.text))
+  const segs: LogTemplateSeg[] = []
+  for (const k of kids) {
+    if (k.type.includes('content')) segs.push(...literalSegs(k.text))
+    else segs.push({ wildcard: true })
+  }
+  return segs
+}
+
+function isStringNode(node: Node): boolean {
+  return node.type === 'string_literal' || node.type.includes('string_literal')
+}
+
+function makeSite(
+  file: ScannedFile,
+  line: number,
+  method: string,
+  msgNode: Node,
+  tagNode: Node | null,
+  segs: LogTemplateSeg[]
+): LogSite | null {
+  const pattern = buildLogPattern(segs)
+  if (!pattern) return null
+  const tag = tagNode && isStringNode(tagNode) ? stripQuotes(tagNode.text) : null
+  return {
+    file: file.relativePath,
+    line,
+    level: LOG_METHODS[method] ?? null,
+    tag,
+    format: msgNode.text,
+    pattern
+  }
+}
+
+function extractJavaLogSites(root: Node, file: ScannedFile): LogSite[] {
+  const sites: LogSite[] = []
+  for (const call of root.descendantsOfType('method_invocation')) {
+    const method = call.childForFieldName('name')?.text
+    const obj = call.childForFieldName('object')
+    if (!method || !obj || !(method in LOG_METHODS)) continue
+    if (!LOG_RECEIVERS.has(lastIdentifier(obj.text))) continue
+    const args = call.childForFieldName('arguments')?.namedChildren ?? []
+    if (args.length === 0) continue
+    const isTimber = lastIdentifier(obj.text) === 'Timber'
+    const msgNode = isTimber ? args[0] : args.length >= 2 ? args[1] : args[0]
+    const tagNode = isTimber ? null : args.length >= 2 ? args[0] : null
+    const site = makeSite(
+      file,
+      call.startPosition.row + 1,
+      method,
+      msgNode,
+      tagNode,
+      javaMessageTemplate(msgNode)
+    )
+    if (site) sites.push(site)
+  }
+  return sites
+}
+
+function extractKotlinLogSites(root: Node, file: ScannedFile): LogSite[] {
+  const sites: LogSite[] = []
+  for (const call of root.descendantsOfType('call_expression')) {
+    const callee = call.namedChildren[0]
+    if (!callee || callee.type !== 'navigation_expression') continue
+    const ids = callee.descendantsOfType('simple_identifier')
+    if (ids.length < 2) continue
+    const method = ids[ids.length - 1].text
+    const receiver = ids[ids.length - 2].text
+    if (!(method in LOG_METHODS) || !LOG_RECEIVERS.has(receiver)) continue
+
+    const suffix = call.namedChildren.find((c) => c.type === 'call_suffix')
+    const valueArguments = suffix?.namedChildren.find((c) => c.type === 'value_arguments')
+    const valueArgs = (valueArguments?.namedChildren ?? []).filter(
+      (c) => c.type === 'value_argument'
+    )
+    const exprs = valueArgs.map((va) => va.namedChildren[0]).filter((n): n is Node => Boolean(n))
+    if (exprs.length === 0) continue
+
+    const isTimber = receiver === 'Timber'
+    const msgNode = isTimber ? exprs[0] : exprs.length >= 2 ? exprs[1] : exprs[0]
+    const tagNode = isTimber ? null : exprs.length >= 2 ? exprs[0] : null
+    const segs: LogTemplateSeg[] = isStringNode(msgNode)
+      ? kotlinStringTemplate(msgNode)
+      : [{ wildcard: true }]
+    const site = makeSite(file, call.startPosition.row + 1, method, msgNode, tagNode, segs)
+    if (site) sites.push(site)
+  }
+  return sites
 }

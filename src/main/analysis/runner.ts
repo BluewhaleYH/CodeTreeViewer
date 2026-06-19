@@ -8,6 +8,7 @@ import type { DomainRule } from './domain'
 import { AnalysisCache, ANALYZER_VERSION, fileFingerprint } from './cache'
 import type { AnalysisProgress, AnalysisSummary, SourceLanguage } from '../../shared/analysis'
 import type { CodeGraph } from '../../shared/graph'
+import type { LogSite } from '../../shared/log'
 
 export interface RunAnalysisOptions {
   onProgress?: (progress: AnalysisProgress) => void
@@ -21,6 +22,7 @@ export interface RunAnalysisOptions {
 export interface AnalysisRunResult {
   summary: AnalysisSummary
   graph: CodeGraph
+  logSites: LogSite[]
 }
 
 export interface AnalyzeResult extends AnalysisRunResult {
@@ -54,8 +56,15 @@ async function analyzeScanned(
       try {
         infos.push(extractFileInfo(tree, file))
       } catch {
-        // 추출 실패해도 파일 노드는 유지(import/함수만 비움).
-        infos.push({ file, packageName: null, topLevelNames: [], imports: [], functions: [] })
+        // 추출 실패해도 파일 노드는 유지(import/함수/로그만 비움).
+        infos.push({
+          file,
+          packageName: null,
+          topLevelNames: [],
+          imports: [],
+          functions: [],
+          logSites: []
+        })
       }
       parsedCount += 1
       byLanguage[file.language] += 1
@@ -97,7 +106,8 @@ async function analyzeScanned(
     callEdgeCount: graph.edges.filter((e) => e.type === 'function-call').length,
     failures
   }
-  return { summary, graph }
+  const logSites = infos.flatMap((i) => i.logSites)
+  return { summary, graph, logSites }
 }
 
 /**
@@ -130,16 +140,22 @@ export async function analyzeProject(
   if (cached && cached.version === ANALYZER_VERSION && cached.fingerprint === fingerprint) {
     const total = scanResult.files.length
     options.onProgress?.({ phase: 'done', processed: total, total })
-    return { summary: cached.summary, graph: cached.graph, fromCache: true }
+    return {
+      summary: cached.summary,
+      graph: cached.graph,
+      logSites: cached.logSites ?? [],
+      fromCache: true
+    }
   }
 
-  const { summary, graph } = await analyzeScanned(scanResult, parser, options)
+  const { summary, graph, logSites } = await analyzeScanned(scanResult, parser, options)
   await cache.set(projectPath, {
     root: projectPath,
     version: ANALYZER_VERSION,
     fingerprint,
     summary,
-    graph
+    graph,
+    logSites
   })
-  return { summary, graph, fromCache: false }
+  return { summary, graph, logSites, fromCache: false }
 }
