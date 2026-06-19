@@ -34,11 +34,78 @@ export function renderOverlay(
     host.appendChild(renderStatsPanel(active))
     host.appendChild(renderViewToggle(active, store))
     if (active.analysis.graph) host.appendChild(renderLegend(active.analysis.graph))
+    if (active.analysis.graph && active.view.selectedNodeId) {
+      const info = renderInfoPanel(active.analysis.graph, active.view.selectedNodeId)
+      if (info) host.appendChild(info)
+    }
     return
   }
 
   host.className = 'ws-overlay ws-overlay--center'
   host.appendChild(renderStatus(active))
+}
+
+/** 선택 노드 정보 패널(읽기 전용). 편집기 연동은 M12. (03 §10, M6_5) */
+function renderInfoPanel(graph: CodeGraph, selectedId: string): HTMLElement | null {
+  const node = graph.nodes.find((n) => n.id === selectedId)
+  if (!node) return null
+
+  const panel = document.createElement('div')
+  panel.className = 'info-panel'
+
+  const title = document.createElement('div')
+  title.className = 'info-panel__title'
+  title.textContent = node.name
+
+  const meta = document.createElement('dl')
+  meta.className = 'info-panel__meta'
+  const addRow = (key: string, value: string): void => {
+    const dt = document.createElement('dt')
+    dt.textContent = key
+    const dd = document.createElement('dd')
+    dd.textContent = value
+    meta.append(dt, dd)
+  }
+
+  if (node.external) {
+    addRow('종류', '외부 의존성')
+    addRow('식별자', node.path)
+  } else {
+    addRow('경로', node.path)
+    addRow('영역', node.domain ?? '—')
+    addRow('언어', node.language ?? '—')
+    addRow('라인', node.line != null ? String(node.line) : '—')
+  }
+
+  panel.append(title, meta)
+
+  // 파일 노드: 정의된 함수 목록(검색·라벨용 데이터). (M4_4)
+  if (!node.external) {
+    const functions = graph.nodes.filter((n) => n.kind === 'function' && n.path === node.path)
+    const fnTitle = document.createElement('div')
+    fnTitle.className = 'info-panel__section'
+    fnTitle.textContent = `함수 ${functions.length}개`
+    panel.appendChild(fnTitle)
+
+    if (functions.length > 0) {
+      const list = document.createElement('ul')
+      list.className = 'info-panel__fns'
+      for (const fn of functions.slice(0, 30)) {
+        const li = document.createElement('li')
+        li.textContent = fn.name
+        list.appendChild(li)
+      }
+      if (functions.length > 30) {
+        const li = document.createElement('li')
+        li.className = 'muted'
+        li.textContent = `…외 ${functions.length - 30}개`
+        list.appendChild(li)
+      }
+      panel.appendChild(list)
+    }
+  }
+
+  return panel
 }
 
 /** 영역(Domain) 색상 범례. (03 §6, M6_4) */
