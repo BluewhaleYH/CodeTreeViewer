@@ -9,14 +9,15 @@ import type { TabState, ViewMode } from '../tabs/tab-store'
 import { toCytoscapeElements } from './to-cytoscape'
 import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
 import { DEFAULT_MAX_INITIAL_NODES, selectInitialView } from './initial-view'
-import { buildNeighborAdjacency, expandableNodeIds, neighborsToAdd } from './expand'
+import { buildNeighborAdjacency, expandableNodeIds } from './expand'
 
 /**
- * 그래프 캔버스(Cytoscape) 생명주기 관리. (03 §2~§4, §8)
- * - 관계도(graph): concentric 방사형(허브 중심). 노드 클릭 → 숨은 이웃 점진 확장(대규모). (M5_3/M5_6)
- * - 트리(tree): breadthfirst 계층 + 노드 클릭 접기/펼치기. (M5_4)
- * 활성 탭/뷰 모드가 바뀔 때만 다시 그린다. 팬/줌/드래그는 Cytoscape 기본.
+ * 그래프 캔버스(Cytoscape) 생명주기 + 상호작용. (03 §2~§5, §8)
+ * 상호작용(D17): 한 번 클릭 = 선택 + 직접 부모/자식(1-홉) 표시. 더블클릭 = 관계도 더 깊게 확장 / 트리 접기·펼치기.
+ * 선택은 뷰 모드 전환 후에도 유지된다(03 §5.2).
  */
+
+const DOUBLE_TAP_MS = 300
 
 const GRAPH_STYLE: StylesheetStyle[] = [
   {
@@ -37,13 +38,14 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     selector: 'node[external="true"]',
     style: { 'background-color': '#555a60', shape: 'diamond', width: 10, height: 10 }
   },
-  {
-    selector: 'node.collapsed',
-    style: { 'border-width': 2, 'border-color': '#e2b341' }
-  },
+  { selector: 'node.collapsed', style: { 'border-width': 2, 'border-color': '#e2b341' } },
   {
     selector: 'node.expandable',
     style: { 'border-width': 2, 'border-color': '#e2b341', 'border-style': 'dashed' }
+  },
+  {
+    selector: 'node.selected',
+    style: { 'border-width': 3, 'border-color': '#ffffff', 'border-style': 'solid' }
   },
   {
     selector: 'edge',
@@ -58,7 +60,6 @@ const GRAPH_STYLE: StylesheetStyle[] = [
   }
 ]
 
-/** 관계도(태양계형) 방사형: degree가 클수록 중심. (03 §3) */
 const radialLayout: LayoutOptions = {
   name: 'concentric',
   concentric: (node: NodeSingular) => node.degree(false),
@@ -68,7 +69,6 @@ const radialLayout: LayoutOptions = {
   animate: false
 }
 
-/** 트리(계층) 배치: 부모(import 하는 쪽)가 위, 자식이 아래. (03 §4) */
 const treeLayout: LayoutOptions = {
   name: 'breadthfirst',
   directed: true,
@@ -84,18 +84,21 @@ function layoutFor(mode: ViewMode): LayoutOptions {
 export class GraphView {
   private cy: Core | null = null
   private currentKey: string | null = null
+  private mode: ViewMode = 'graph'
 
-  // 트리 접기/펼치기
-  private childAdjacency: Map<string, string[]> = new Map()
-  private readonly collapsed = new Set<string>()
-
-  // 점진 확장(관계도)
   private fullGraph: CodeGraph = { nodes: [], edges: [] }
   private neighborAdjacency: Map<string, Set<string>> = new Map()
+  private childAdjacency: Map<string, string[]> = new Map()
   private displayed = new Set<string>()
+  private readonly collapsed = new Set<string>()
+
+  private selectedId: string | null = null
+  private lastTapId: string | null = null
+  private lastTapTime = 0
 
   constructor(
     private readonly host: HTMLElement,
+    private readonly onSelectNode?: (nodeId: string | null) => void,
     private readonly maxInitialNodes: number = DEFAULT_MAX_INITIAL_NODES
   ) {}
 
@@ -106,24 +109,36 @@ export class GraphView {
       return
     }
     const key = `${tab.id}:${tab.view.mode}`
-    if (this.currentKey === key && this.cy) return
+    if (this.currentKey === key && this.cy) {
+      // 같은 뷰: 외부(시드/검색 등)에서 바뀐 선택을 캔버스에 반영한다.
+      this.syncSelection(tab.view.selectedNodeId)
+      return
+    }
     this.currentKey = key
-    this.draw(graph, tab.view.mode)
+    this.draw(graph, tab.view.mode, tab.view.selectedNodeId)
   }
 
-  private draw(graph: CodeGraph, mode: ViewMode): void {
+  /** store의 선택을 캔버스에 맞춘다(통지 없이). */
+  private syncSelection(selectedNodeId: string | null): void {
+    const target = selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : null
+    if (target === this.selectedId) return
+    this.selectedId = target
+    this.applySelectedStyle()
+  }
+
+  private draw(graph: CodeGraph, mode: ViewMode, selectedNodeId: string | null): void {
     this.destroyCy()
     this.host.style.display = 'block'
+    this.mode = mode
     this.collapsed.clear()
     this.fullGraph = graph
     this.neighborAdjacency = buildNeighborAdjacency(graph)
 
-    // 초기 뷰: 소규모 전체 / 대규모 진입점 중심. (M5_5)
     const view = selectInitialView(graph, this.maxInitialNodes)
     this.displayed = new Set(view.graph.nodes.map((n) => n.id))
     this.childAdjacency = buildChildAdjacency(view.graph)
 
-    this.cy = cytoscape({
+    const cy = cytoscape({
       container: this.host,
       elements: toCytoscapeElements(view.graph),
       style: GRAPH_STYLE,
@@ -132,42 +147,80 @@ export class GraphView {
       minZoom: 0.05,
       maxZoom: 4
     })
+    this.cy = cy
 
-    if (mode === 'tree') this.enableCollapse()
-    else this.enableExpand()
+    this.registerTapHandlers()
+    if (mode === 'graph') this.markExpandable()
+
+    // 모드 전환 후 선택 유지. (03 §5.2)
+    this.selectedId = selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : null
+    this.applySelectedStyle()
   }
 
-  /** 트리 모드: 노드 탭 → 자손 접기/펼치기. (03 §4) */
-  private enableCollapse(): void {
+  private registerTapHandlers(): void {
     const cy = this.cy
     if (!cy) return
+
     cy.on('tap', 'node', (event) => {
       const id = event.target.id()
-      if (this.collapsed.has(id)) this.collapsed.delete(id)
-      else this.collapsed.add(id)
-      event.target.toggleClass('collapsed', this.collapsed.has(id))
-      this.applyVisibility()
+      const now = Date.now()
+      const isDouble = id === this.lastTapId && now - this.lastTapTime < DOUBLE_TAP_MS
+      this.lastTapId = id
+      this.lastTapTime = now
+
+      // 한 번 클릭: 선택 + 직접 이웃(1-홉) 표시.
+      this.selectNode(id)
+      if (this.mode === 'graph') this.reveal(id, 1)
+
+      if (isDouble) {
+        // 더블클릭: 관계도는 더 깊게(2-홉), 트리는 접기/펼치기.
+        if (this.mode === 'tree') this.toggleCollapse(id)
+        else this.reveal(id, 2)
+      }
+    })
+
+    cy.on('tap', (event) => {
+      if (event.target === cy) this.selectNode(null)
     })
   }
 
-  /** 관계도 모드: 노드 탭 → 숨은 이웃 점진 확장. (03 §8, M5_6) */
-  private enableExpand(): void {
-    const cy = this.cy
-    if (!cy) return
-    this.markExpandable()
-    cy.on('tap', 'node', (event) => this.expand(event.target.id()))
+  private selectNode(id: string | null): void {
+    if (this.selectedId === id) return
+    this.selectedId = id
+    this.applySelectedStyle()
+    this.onSelectNode?.(id)
   }
 
-  private expand(id: string): void {
+  private applySelectedStyle(): void {
     const cy = this.cy
     if (!cy) return
-    const toAdd = neighborsToAdd(id, this.displayed, this.neighborAdjacency)
-    if (toAdd.length === 0) return
+    cy.nodes().removeClass('selected')
+    if (this.selectedId) cy.getElementById(this.selectedId).addClass('selected')
+  }
 
-    const addSet = new Set(toAdd)
-    toAdd.forEach((n) => this.displayed.add(n))
+  /** 노드의 hops-홉 이내 숨은 이웃을 드러낸다. (1-홉=직접 부모/자식) */
+  private reveal(id: string, hops: number): void {
+    const cy = this.cy
+    if (!cy) return
 
-    const addedNodes = this.fullGraph.nodes.filter((n) => addSet.has(n.id))
+    const added = new Set<string>()
+    let frontier = [id]
+    for (let depth = 0; depth < hops; depth += 1) {
+      const next: string[] = []
+      for (const nodeId of frontier) {
+        for (const neighbor of this.neighborAdjacency.get(nodeId) ?? []) {
+          if (!this.displayed.has(neighbor) && !added.has(neighbor)) {
+            added.add(neighbor)
+          }
+          next.push(neighbor)
+        }
+      }
+      frontier = next
+    }
+    if (added.size === 0) return
+
+    added.forEach((n) => this.displayed.add(n))
+    const addedNodes = this.fullGraph.nodes.filter((n) => added.has(n.id))
     const newEdges = this.fullGraph.edges.filter(
       (e) =>
         this.displayed.has(e.from) &&
@@ -177,20 +230,16 @@ export class GraphView {
     cy.add(toCytoscapeElements({ nodes: addedNodes, edges: newEdges }))
     cy.layout(radialLayout).run()
     this.markExpandable()
+    this.applySelectedStyle()
   }
 
-  private markExpandable(): void {
+  private toggleCollapse(id: string): void {
     const cy = this.cy
     if (!cy) return
-    const expandable = expandableNodeIds(this.displayed, this.neighborAdjacency)
-    cy.nodes().forEach((node) => {
-      node.toggleClass('expandable', expandable.has(node.id()))
-    })
-  }
+    if (this.collapsed.has(id)) this.collapsed.delete(id)
+    else this.collapsed.add(id)
+    cy.getElementById(id).toggleClass('collapsed', this.collapsed.has(id))
 
-  private applyVisibility(): void {
-    const cy = this.cy
-    if (!cy) return
     const hidden = hiddenNodeIds(this.collapsed, this.childAdjacency)
     cy.batch(() => {
       cy.nodes().forEach((node) => {
@@ -203,9 +252,19 @@ export class GraphView {
     })
   }
 
+  private markExpandable(): void {
+    const cy = this.cy
+    if (!cy) return
+    const expandable = expandableNodeIds(this.displayed, this.neighborAdjacency)
+    cy.nodes().forEach((node) => {
+      node.toggleClass('expandable', expandable.has(node.id()))
+    })
+  }
+
   private clear(): void {
     this.destroyCy()
     this.currentKey = null
+    this.selectedId = null
     this.host.style.display = 'none'
   }
 
