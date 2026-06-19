@@ -1,4 +1,9 @@
-import cytoscape, { type Core, type StylesheetStyle } from 'cytoscape'
+import cytoscape, {
+  type Core,
+  type LayoutOptions,
+  type NodeSingular,
+  type StylesheetStyle
+} from 'cytoscape'
 import type { CodeGraph } from '../../../shared/graph'
 import type { TabState } from '../tabs/tab-store'
 import { toCytoscapeElements } from './to-cytoscape'
@@ -7,8 +12,19 @@ import { toCytoscapeElements } from './to-cytoscape'
  * 그래프 캔버스(Cytoscape) 생명주기 관리. (03 §2)
  * 매 렌더마다 재생성하지 않고, 활성 탭의 그래프가 바뀔 때만 다시 그린다.
  * 팬/줌/드래그는 Cytoscape 기본 동작으로 제공된다.
- * 방사형(태양계형)/트리 레이아웃은 M5_3/M5_4, 영역 색상은 M6.
+ * 관계도(태양계형)는 방사형(concentric) 배치 — 연결이 많은 노드를 중심에 둔다. (M5_3, 03 §3)
+ * 트리 뷰는 M5_4, 선택 노드 중심 궤도화는 M6, 영역 색상은 M6.
  */
+
+/** 관계도(태양계형) 방사형 레이아웃: degree(연결 수)가 클수록 중심. (03 §3) */
+const radialLayout: LayoutOptions = {
+  name: 'concentric',
+  concentric: (node: NodeSingular) => node.degree(false),
+  levelWidth: () => 1,
+  minNodeSpacing: 28,
+  spacingFactor: 1.1,
+  animate: false
+}
 
 const GRAPH_STYLE: StylesheetStyle[] = [
   {
@@ -71,7 +87,7 @@ export class GraphView {
       container: this.host,
       elements: toCytoscapeElements(graph),
       style: GRAPH_STYLE,
-      layout: { name: 'cose', animate: false, nodeRepulsion: () => 8000 },
+      layout: radialLayout,
       wheelSensitivity: 0.2,
       minZoom: 0.05,
       maxZoom: 4
