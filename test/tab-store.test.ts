@@ -344,3 +344,58 @@ describe('TabStore — 뷰 상태(모드/선택 노드) 영속 (M8_4)', () => {
     expect(store2.serialize()).toEqual(snapshot)
   })
 })
+
+describe('TabStore — 함수 호출처 역추적 상태 (M10_2)', () => {
+  it('새 탭은 역추적 상태가 없다', () => {
+    const store = new TabStore()
+    const tab = store.addEmptyTab()
+    expect(tab.view.backtrace).toBeNull()
+  })
+
+  it('setBacktrace로 역추적을 시작/전환한다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setBacktrace(a.id, 'function:A.kt#load')
+    expect(a.view.backtrace).toBe('function:A.kt#load')
+    store.setBacktrace(a.id, 'function:A.kt#save')
+    expect(a.view.backtrace).toBe('function:A.kt#save')
+  })
+
+  it('clearBacktrace로 파일 그래프로 돌아간다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setBacktrace(a.id, 'function:A.kt#load')
+    store.clearBacktrace(a.id)
+    expect(a.view.backtrace).toBeNull()
+  })
+
+  it('뷰 모드 전환 시 역추적이 종료된다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setBacktrace(a.id, 'function:A.kt#load')
+    store.setViewMode(a.id, 'tree')
+    expect(a.view.backtrace).toBeNull()
+    expect(a.view.mode).toBe('tree')
+  })
+
+  it('노드 선택 시 역추적이 종료된다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setBacktrace(a.id, 'function:A.kt#load')
+    store.setSelectedNode(a.id, 'file:A.kt')
+    expect(a.view.backtrace).toBeNull()
+    expect(a.view.selectedNodeId).toBe('file:A.kt')
+  })
+
+  it('역추적은 직렬화/복원되지 않는다(전환 탐색 상태)', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setBacktrace(a.id, 'function:A.kt#load')
+    const snapshot = store.serialize()
+    expect(snapshot.tabs[0].view).not.toHaveProperty('backtrace')
+
+    const store2 = new TabStore()
+    const restored = store2.restore(snapshot.tabs, snapshot.activeIndex)
+    expect(restored[0].view.backtrace).toBeNull()
+  })
+})

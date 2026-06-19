@@ -6,7 +6,7 @@ import { GraphView } from './graph/graph-view'
 import { SearchView } from './search/search-view'
 import { buildSearchIndex, focusTargetId } from './search/search-index'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
-import { fileNodeId } from '../../shared/graph'
+import { functionNodeId } from '../../shared/graph'
 
 const root = document.getElementById('app')
 
@@ -35,7 +35,19 @@ if (root) {
       if (activeId) store.setSelectedNode(activeId, nodeId)
     }
     const graphView = new GraphView(wsGraph, selectNode)
-    const searchView = new SearchView(wsSearch, (entry) => selectNode(focusTargetId(entry)))
+    const startBacktrace = (functionId: string): void => {
+      const activeId = store.getActiveId()
+      if (activeId) store.setBacktrace(activeId, functionId)
+    }
+    const exitBacktrace = (): void => {
+      const activeId = store.getActiveId()
+      if (activeId) store.clearBacktrace(activeId)
+    }
+    // 검색: 함수 결과는 호출처 역추적, 파일 결과는 포커스. (M7_4, M10_2)
+    const searchView = new SearchView(wsSearch, (entry) => {
+      if (entry.kind === 'function') startBacktrace(entry.id)
+      else selectNode(focusTargetId(entry))
+    })
 
     const isCapture = window.codetree.captureMode
 
@@ -52,7 +64,11 @@ if (root) {
 
     const render = (): void => {
       renderTabBar(tabbar, store)
-      renderOverlay(wsOverlay, store, { openProject: () => void openProject() })
+      renderOverlay(wsOverlay, store, {
+        openProject: () => void openProject(),
+        backtrace: startBacktrace,
+        exitBacktrace
+      })
       const active = store.getActive()
       graphView.sync(active)
       // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
@@ -124,7 +140,8 @@ if (root) {
         store.addEmptyTab()
         const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
         store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
-        store.setSelectedNode(demo.id, fileNodeId('core/src/main/kotlin/Repository.kt'))
+        // 역추적 데모: Repository.load의 호출처 체인 표시. (M10_2)
+        store.setBacktrace(demo.id, functionNodeId('core/src/main/kotlin/Repository.kt', 'load'))
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
         searchView.seedHistory(['Repository', 'ViewModel', 'load'])

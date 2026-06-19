@@ -325,6 +325,42 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* 함수 목록 항목(클릭 → 호출처 역추적). (M10_2) */
+.info-panel__fn {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  padding: 1px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.info-panel__fn:hover {
+  text-decoration: underline;
+}
+
+/* 역추적 패널. (M10_2) */
+.backtrace-panel__sub {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.backtrace-panel__exit {
+  margin-top: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-tab);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.backtrace-panel__exit:hover {
+  filter: brightness(1.15);
+}
+
 /* 영역 색상 범례 (좌하단) */
 .legend {
   position: absolute;

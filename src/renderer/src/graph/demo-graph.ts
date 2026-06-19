@@ -1,4 +1,10 @@
-import { externalNodeId, fileNodeId, type CodeGraph, type GraphNode } from '../../../shared/graph'
+import {
+  externalNodeId,
+  fileNodeId,
+  functionNodeId,
+  type CodeGraph,
+  type GraphNode
+} from '../../../shared/graph'
 import type { AnalysisSummary, SourceLanguage } from '../../../shared/analysis'
 
 /** 자체 검수(스크린샷)용 데모 그래프/요약. 실제 분석과 무관. */
@@ -13,6 +19,19 @@ function fileNode(path: string, domain: string, language: SourceLanguage): Graph
     domain,
     external: false,
     line: null
+  }
+}
+
+function fnNode(path: string, name: string, domain: string, line: number): GraphNode {
+  return {
+    id: functionNodeId(path, name),
+    kind: 'function',
+    name,
+    path,
+    language: 'kotlin',
+    domain,
+    external: false,
+    line
   }
 }
 
@@ -48,6 +67,29 @@ export function buildDemoGraph(): CodeGraph {
     }
   }
 
+  // 함수 노드 + 호출 엣지(역추적 데모용). (M10_2)
+  const vm = 'app/src/main/kotlin/LoginViewModel.kt'
+  const repo = 'core/src/main/kotlin/Repository.kt'
+  const api = 'core/src/main/kotlin/ApiClient.kt'
+  const functions: GraphNode[] = [
+    fnNode(vm, 'login', 'app', 12),
+    fnNode(vm, 'onRetry', 'app', 24),
+    fnNode(repo, 'load', 'core', 8),
+    fnNode(repo, 'save', 'core', 20),
+    fnNode(api, 'get', 'core', 10)
+  ]
+
+  const call = (
+    fromPath: string,
+    fromFn: string,
+    toPath: string,
+    toFn: string
+  ): CodeGraph['edges'][number] => {
+    const from = functionNodeId(fromPath, fromFn)
+    const to = functionNodeId(toPath, toFn)
+    return { id: `function-call:${from}->${to}`, type: 'function-call', from, to, line: null }
+  }
+
   const edges = [
     dep('app/src/main/kotlin/MainActivity.kt', fileNodeId('app/src/main/kotlin/LoginViewModel.kt')),
     dep('app/src/main/kotlin/MainActivity.kt', fileNodeId('util/src/main/java/Strings.java')),
@@ -55,10 +97,15 @@ export function buildDemoGraph(): CodeGraph {
     dep('app/src/main/kotlin/LoginViewModel.kt', fileNodeId('util/src/main/java/Logger.java')),
     dep('core/src/main/kotlin/Repository.kt', fileNodeId('core/src/main/kotlin/ApiClient.kt')),
     dep('core/src/main/kotlin/Repository.kt', fileNodeId('core/src/main/kotlin/Models.kt')),
-    dep('core/src/main/kotlin/ApiClient.kt', externalNodeId('retrofit2.Retrofit'))
+    dep('core/src/main/kotlin/ApiClient.kt', externalNodeId('retrofit2.Retrofit')),
+    // 호출: login·onRetry → load, load → get, save → get
+    call(vm, 'login', repo, 'load'),
+    call(vm, 'onRetry', repo, 'load'),
+    call(repo, 'load', api, 'get'),
+    call(repo, 'save', api, 'get')
   ]
 
-  return { nodes: [...files, ext], edges }
+  return { nodes: [...files, ext, ...functions], edges }
 }
 
 export const DEMO_SUMMARY: AnalysisSummary = {
@@ -68,11 +115,11 @@ export const DEMO_SUMMARY: AnalysisSummary = {
   failureCount: 0,
   byLanguage: { java: 2, kotlin: 5 },
   skippedDirCount: 0,
-  nodeCount: 8,
-  functionNodeCount: 0,
+  nodeCount: 13,
+  functionNodeCount: 5,
   externalNodeCount: 1,
   domainCount: 3,
   edgeCount: 7,
-  callEdgeCount: 0,
+  callEdgeCount: 4,
   failures: []
 }

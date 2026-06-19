@@ -40,6 +40,33 @@ export function toCytoscapeElements(
   return [...nodes, ...edges]
 }
 
+/**
+ * 역추적(backtrace) 부분 그래프를 Cytoscape elements로 변환한다. (M10_2)
+ * 파일 그래프와 달리 **함수 노드를 렌더**한다(호출처 체인). 색은 소속 영역 색을 따른다.
+ */
+export function backtraceElements(
+  graph: CodeGraph,
+  domainColors: Map<string, string> = new Map()
+): ElementDefinition[] {
+  const ids = new Set(graph.nodes.map((n) => n.id))
+  const nodes: ElementDefinition[] = graph.nodes.map((node) => ({
+    data: {
+      id: node.id,
+      label: node.name,
+      kind: node.kind,
+      domain: node.domain ?? '',
+      external: node.external ? 'true' : 'false',
+      color: colorFor(node, domainColors)
+    }
+  }))
+  const edges: ElementDefinition[] = graph.edges
+    .filter((edge) => ids.has(edge.from) && ids.has(edge.to))
+    .map((edge) => ({
+      data: { id: edge.id, source: edge.from, target: edge.to, type: edge.type }
+    }))
+  return [...nodes, ...edges]
+}
+
 function colorFor(node: GraphNode, domainColors: Map<string, string>): string {
   if (node.external) return EXTERNAL_NODE_COLOR
   return (node.domain && domainColors.get(node.domain)) || DEFAULT_NODE_COLOR
