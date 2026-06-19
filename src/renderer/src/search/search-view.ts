@@ -20,7 +20,7 @@ export class SearchView {
 
   constructor(
     private readonly host: HTMLElement,
-    private readonly onPick: (nodeId: string) => void
+    private readonly onPick: (entry: SearchEntry) => void
   ) {
     this.host.classList.add('searchbar')
     this.host.innerHTML = `
@@ -89,7 +89,7 @@ export class SearchView {
     for (const entry of matches.slice(0, MAX_RESULTS)) {
       const row = document.createElement('button')
       row.className = 'search__row'
-      row.addEventListener('click', () => this.onPick(entry.id))
+      row.addEventListener('click', () => this.onPick(entry))
 
       const icon = document.createElement('span')
       icon.className = 'search__icon'

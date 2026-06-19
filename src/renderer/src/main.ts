@@ -4,7 +4,7 @@ import { renderTabBar } from './tabs/tab-bar'
 import { renderOverlay } from './tabs/tab-content'
 import { GraphView } from './graph/graph-view'
 import { SearchView } from './search/search-view'
-import { buildSearchIndex } from './search/search-index'
+import { buildSearchIndex, focusTargetId } from './search/search-index'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
 import { fileNodeId } from '../../shared/graph'
 
@@ -34,7 +34,7 @@ if (root) {
       if (activeId) store.setSelectedNode(activeId, nodeId)
     }
     const graphView = new GraphView(wsGraph, selectNode)
-    const searchView = new SearchView(wsSearch, (nodeId) => selectNode(nodeId))
+    const searchView = new SearchView(wsSearch, (entry) => selectNode(focusTargetId(entry)))
 
     const render = (): void => {
       renderTabBar(tabbar, store)

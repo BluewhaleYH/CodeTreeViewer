@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildSearchIndex } from '../src/renderer/src/search/search-index'
+import { buildSearchIndex, focusTargetId } from '../src/renderer/src/search/search-index'
+import { fileNodeId } from '../src/shared/graph'
 import type { CodeGraph, GraphNode } from '../src/shared/graph'
 
 function fileNode(id: string, name: string, external = false): GraphNode {
@@ -46,5 +47,13 @@ describe('검색 인덱스 (M7_1)', () => {
     })
     const file = index.find((e) => e.name === 'A.java')
     expect(file).toMatchObject({ kind: 'file', line: null })
+  })
+
+  it('focusTargetId: 함수는 소속 파일 노드, 파일은 자신 (M7_4)', () => {
+    const index = buildSearchIndex(graph)
+    const fn = index.find((e) => e.name === 'foo')!
+    expect(focusTargetId(fn)).toBe(fileNodeId('a/A.java'))
+    const file = index.find((e) => e.name === 'A.java')!
+    expect(focusTargetId(file)).toBe('file:a/A.java')
   })
 })
