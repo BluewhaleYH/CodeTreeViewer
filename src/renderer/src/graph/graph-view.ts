@@ -143,8 +143,8 @@ export class GraphView {
       return
     }
     const key = `${tab.id}:${tab.view.mode}`
-    if (this.currentKey === key && this.cy) {
-      // 같은 뷰: 외부(시드/검색 등)에서 바뀐 선택을 캔버스에 반영한다.
+    // 같은 뷰 + 같은 그래프: 선택만 반영. 재분석 등으로 그래프가 바뀌면 다시 그린다. (M12_3)
+    if (this.currentKey === key && this.cy && this.fullGraph === graph) {
       this.syncSelection(tab.view.selectedNodeId)
       return
     }

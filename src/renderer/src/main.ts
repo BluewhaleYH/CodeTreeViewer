@@ -94,6 +94,9 @@ if (root) {
       if (res.ok) {
         store.setCodeSaved(activeId, content, res.mtime)
         editorView.markSaved()
+        // 저장 시 자동 증분 재분석 → 그래프/검색 갱신. (06 §4, M12_3)
+        const updated = await window.codetree.reanalyze(active.projectPath, cv.file)
+        store.finishAnalysis(activeId, updated.summary, updated.graph, updated.logSites)
       } else if ('error' in res) {
         alert(`저장 실패: ${res.error}`)
       }

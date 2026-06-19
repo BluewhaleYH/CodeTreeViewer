@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SourceParser } from '../src/main/analysis/parser'
 import { resolveParserConfig } from '../src/main/analysis/wasm-paths'
-import { runAnalysis } from '../src/main/analysis/runner'
+import { runAnalysis, reanalyzeFile } from '../src/main/analysis/runner'
 import { fileNodeId, functionNodeId } from '../src/shared/graph'
 
 let parser: SourceParser
@@ -270,6 +270,47 @@ describe('로그 호출 추출 (M11_4)', () => {
     expect(logSites).toHaveLength(1)
     expect(logSites[0].level).toBe('W')
     expect(new RegExp(logSites[0].pattern).test('retry failed again')).toBe(true)
+  })
+})
+
+describe('증분 재분석 (M12_3)', () => {
+  it('변경 파일만 재파싱해 그래프(엣지)를 갱신한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-inc-'))
+    await write('a/A.java', 'package a;\nclass A {}')
+    await write('b/B.java', 'package b;\nclass B {}')
+
+    const full = await runAnalysis(root, parser)
+    expect(full.graph.edges).toHaveLength(0) // 아직 import 없음
+
+    // A.java에 import 추가 후 변경 파일만 증분 재분석.
+    await write('a/A.java', 'package a;\nimport b.B;\nclass A {}')
+    const fileA = full.files.find((f) => f.relativePath === 'a/A.java')
+    expect(fileA).toBeTruthy()
+    const inc = await reanalyzeFile(fileA!, parser, full)
+
+    const edge = inc.graph.edges.find((e) => e.type === 'file-dependency')
+    expect(edge?.from).toBe(fileNodeId('a/A.java'))
+    expect(edge?.to).toBe(fileNodeId('b/B.java'))
+    expect(inc.summary.edgeCount).toBe(1)
+  })
+
+  it('변경되지 않은 다른 파일의 노드/로그사이트는 유지된다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-inc-'))
+    await write(
+      'a/A.java',
+      'package a;\nimport android.util.Log;\nclass A { void m(){ Log.e("T","load() failed: "+e); } }'
+    )
+    await write('b/B.java', 'package b;\nclass B {}')
+
+    const full = await runAnalysis(root, parser)
+    expect(full.logSites).toHaveLength(1)
+
+    // B만 변경 → A의 로그사이트는 그대로.
+    await write('b/B.java', 'package b;\nclass B { int x; }')
+    const fileB = full.files.find((f) => f.relativePath === 'b/B.java')!
+    const inc = await reanalyzeFile(fileB, parser, full)
+    expect(inc.logSites).toHaveLength(1)
+    expect(inc.logSites[0].file).toBe('a/A.java')
   })
 })
 
