@@ -16,16 +16,24 @@ const SAVE_DEBOUNCE_MS = 400
 
 export class SessionManager {
   private state: SessionState = emptySession()
+  private corrupted = false
   private timer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly store: SessionStore) {}
 
   async init(): Promise<void> {
-    this.state = await this.store.load()
+    const result = await this.store.load()
+    this.state = result.state
+    this.corrupted = result.corrupted
   }
 
   get(): SessionState {
     return this.state
+  }
+
+  /** 로드 시 세션 손상을 감지했는지. 비차단 알림 트리거에 사용한다. (01 §10) */
+  wasCorrupted(): boolean {
+    return this.corrupted
   }
 
   setWindow(window: WindowState): void {

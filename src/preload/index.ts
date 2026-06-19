@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { AnalysisProgress, AnalysisResult } from '../shared/analysis'
-import type { PersistedTab, SessionState } from '../shared/session'
+import type { PersistedTab, SessionNotice, SessionState } from '../shared/session'
 
 export interface ProjectSelection {
   path: string
@@ -64,7 +64,14 @@ const api = {
   /** 세션 로드 / 탭 저장. (01 §5) */
   loadSession: (): Promise<SessionState> => ipcRenderer.invoke('session:load'),
   saveTabs: (tabs: PersistedTab[], activeIndex: number): Promise<void> =>
-    ipcRenderer.invoke('session:save-tabs', { tabs, activeIndex })
+    ipcRenderer.invoke('session:save-tabs', { tabs, activeIndex }),
+
+  /** 세션 비차단 알림(손상 감지 등) 구독. 해제 함수를 반환한다. (01 §10) */
+  onSessionNotice: (handler: (notice: SessionNotice) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, notice: SessionNotice): void => handler(notice)
+    ipcRenderer.on('session:notice', listener)
+    return () => ipcRenderer.removeListener('session:notice', listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('codetree', api)

@@ -20,7 +20,14 @@ if (!gotSingleInstanceLock) {
 
     registerIpcHandlers()
     buildAppMenu()
-    createMainWindow(session)
+    const win = createMainWindow(session)
+
+    // 세션 손상 감지 시 비차단 알림을 렌더러에 통지한다. (01 §10)
+    if (session.wasCorrupted()) {
+      win.webContents.once('did-finish-load', () => {
+        if (!win.isDestroyed()) win.webContents.send('session:notice', { kind: 'corrupted' })
+      })
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow(session)
