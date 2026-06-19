@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { AnalysisProgress, AnalysisResult } from '../shared/analysis'
+import type { SessionState } from '../shared/session'
 
 export interface ProjectSelection {
   path: string
@@ -58,7 +59,11 @@ const api = {
     return ipcRenderer
       .invoke('analysis:run', { id, projectPath })
       .finally(() => ipcRenderer.removeListener('analysis:progress', listener))
-  }
+  },
+
+  /** 세션 로드/저장. (01 §5) */
+  loadSession: (): Promise<SessionState> => ipcRenderer.invoke('session:load'),
+  saveSession: (state: SessionState): Promise<void> => ipcRenderer.invoke('session:save', state)
 }
 
 contextBridge.exposeInMainWorld('codetree', api)
