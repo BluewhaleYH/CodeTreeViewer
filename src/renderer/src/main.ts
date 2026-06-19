@@ -7,8 +7,9 @@ import { SearchView } from './search/search-view'
 import { buildSearchIndex, focusTargetId } from './search/search-index'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
 import { LogView } from './log/log-view'
+import { CodeView } from './log/code-view'
 import { splitLines } from './log/log-lines'
-import { DEMO_LOG_LINES, DEMO_LOG_SITES } from './log/demo-log'
+import { DEMO_LOG_LINES, DEMO_LOG_SITES, DEMO_CODE_LINES } from './log/demo-log'
 import { fileNodeId } from '../../shared/graph'
 
 const root = document.getElementById('app')
@@ -25,17 +26,19 @@ if (root) {
           <div class="ws-search" id="ws-search"></div>
           <div class="session-notice" id="session-notice" hidden></div>
         </div>
+        <div class="ws-code" id="ws-code" hidden></div>
       </main>
     </div>
   `
 
   const tabbar = root.querySelector<HTMLElement>('#tabbar')
   const wsLog = root.querySelector<HTMLElement>('#ws-log')
+  const wsCode = root.querySelector<HTMLElement>('#ws-code')
   const wsGraph = root.querySelector<HTMLElement>('#ws-graph')
   const wsOverlay = root.querySelector<HTMLElement>('#ws-overlay')
   const wsSearch = root.querySelector<HTMLElement>('#ws-search')
 
-  if (tabbar && wsLog && wsGraph && wsOverlay && wsSearch) {
+  if (tabbar && wsLog && wsCode && wsGraph && wsOverlay && wsSearch) {
     const store = new TabStore()
     const selectNode = (nodeId: string | null): void => {
       const activeId = store.getActiveId()
@@ -64,6 +67,21 @@ if (root) {
       if (activeId) store.selectLogLine(activeId, index)
     }
     const logView = new LogView(wsLog, { onClose: closeLog, onSelectLine: selectLogLine })
+    const closeCode = (): void => {
+      const activeId = store.getActiveId()
+      if (activeId) store.setCodeView(activeId, null)
+    }
+    const codeView = new CodeView(wsCode, { onClose: closeCode })
+
+    // 로그→코드 후보 열기: 소스를 읽어 코드 뷰에 표시 + 그래프 노드 포커스(3중 연동). (04 §6·§7, M11_5)
+    const openCandidate = async (file: string, line: number): Promise<void> => {
+      const activeId = store.getActiveId()
+      const active = store.getActive()
+      if (!activeId || !active?.projectPath) return
+      selectNode(fileNodeId(file))
+      const content = await window.codetree.readSource(active.projectPath, file)
+      if (content !== null) store.setCodeView(activeId, { file, line, lines: splitLines(content) })
+    }
 
     const isCapture = window.codetree.captureMode
 
@@ -84,7 +102,7 @@ if (root) {
         openProject: () => void openProject(),
         backtrace: startBacktrace,
         exitBacktrace,
-        openCandidate: (site) => selectNode(fileNodeId(site.file))
+        openCandidate: (site) => void openCandidate(site.file, site.line)
       })
       const active = store.getActive()
       graphView.sync(active)
@@ -96,9 +114,25 @@ if (root) {
           lines: active.log.lines
         })
         logView.setSelectedLine(active.log.selectedLine)
+        // 노드→로그 연동: 선택된 파일 노드와 연관된 라인 강조. (04 §7, M11_5)
+        const sel = active.view.selectedNodeId
+        const relatedFile = sel && sel.startsWith('file:') ? sel.slice('file:'.length) : null
+        logView.setRelatedFile(relatedFile, active.analysis.logSites)
       } else {
         wsLog.hidden = true
         logView.setDump(null, null)
+      }
+      // 코드 뷰(우측): 역추적 후보 소스. (04 §6, M11_5)
+      if (active && active.codeView) {
+        wsCode.hidden = false
+        codeView.setData(`${active.id}:${active.codeView.file}:${active.codeView.line}`, {
+          file: active.codeView.file,
+          line: active.codeView.line,
+          lines: active.codeView.lines
+        })
+      } else {
+        wsCode.hidden = true
+        codeView.setData(null, null)
       }
       // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
       if (active && active.analysis.status === 'done' && active.analysis.graph) {
@@ -191,6 +225,12 @@ if (root) {
           name: 'app.logcat',
           lines: DEMO_LOG_LINES,
           selectedLine: 5 // E Repository load failed 라인 → 다중 후보 매칭
+        })
+        // 3-뷰 데모: 코드 뷰에 매칭 소스 표시(우측). (M11_5)
+        store.setCodeView(demo.id, {
+          file: 'core/src/main/kotlin/Repository.kt',
+          line: 14,
+          lines: DEMO_CODE_LINES
         })
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).

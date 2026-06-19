@@ -33,3 +33,25 @@ export const DEMO_LOG_SITES: LogSite[] = [
     pattern: '^load\\(\\) failed: .*?$'
   }
 ]
+
+/** 데모 코드 뷰 소스(Repository.kt). 강조 라인 14. */
+export const DEMO_CODE_LINES: string[] = [
+  'package core',
+  '',
+  'import android.util.Log',
+  'import retrofit2.Retrofit',
+  '',
+  'class Repository(private val api: ApiClient) {',
+  '',
+  '  suspend fun load(id: Int): Profile {',
+  '    Log.i("Repository", "load() fetching profile id=$id")',
+  '    return try {',
+  '      api.get(id)',
+  '    } catch (e: Exception) {',
+  '      // 로그 메시지가 logcat의 E Repository 라인과 매칭된다',
+  '      Log.e("Repository", "load() failed: $e")',
+  '      throw e',
+  '    }',
+  '  }',
+  '}'
+]

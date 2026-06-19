@@ -54,6 +54,15 @@ export interface TabState {
   analysis: TabAnalysisState
   /** 열린 로그 덤프. null이면 로그 분석 비활성. (04 §2, M11) */
   log: TabLogState | null
+  /** 코드 뷰(역추적 후보 소스 표시). null이면 코드 뷰 비활성. (04 §6, M11_5) */
+  codeView: TabCodeView | null
+}
+
+/** 코드 뷰 대상(읽기 전용 소스 + 강조 라인). (04 §6, M11_5) */
+export interface TabCodeView {
+  file: string
+  line: number
+  lines: string[]
 }
 
 const DEFAULT_VIEW_MODE: ViewMode = 'graph'
@@ -76,7 +85,8 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     projectName,
     view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null, backtrace: null },
     analysis: createAnalysisState(),
-    log: null
+    log: null,
+    codeView: null
   }
 }
 
@@ -189,6 +199,14 @@ export class TabStore {
     const tab = this.tabs.find((t) => t.id === id)
     if (!tab || !tab.log || tab.log.selectedLine === index) return
     tab.log = { ...tab.log, selectedLine: index }
+    this.emit()
+  }
+
+  /** 코드 뷰를 연다(역추적 후보 소스 표시). (04 §6, M11_5) */
+  setCodeView(id: string, codeView: TabCodeView | null): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab) return
+    tab.codeView = codeView
     this.emit()
   }
 

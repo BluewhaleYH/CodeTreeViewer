@@ -1,6 +1,8 @@
 import { visibleRange } from './log-virtual'
 import { parseAll, type LogcatFields, type LogLevel } from './logcat-parse'
 import { ALL_LEVELS, filterIndices, type LogFilter } from './log-filter'
+import { relatedLogLines } from './log-match'
+import type { LogSite } from '../../../shared/log'
 
 /**
  * 로그 덤프 열람 뷰(영속 컴포넌트). (04 §2~§4, M11_1·M11_2·M11_3)
@@ -33,6 +35,9 @@ export class LogView {
   private visible: number[] = []
   /** 선택된 원본 라인 인덱스(역추적). */
   private selectedLine: number | null = null
+  /** 선택 노드(파일)와 연관된 라인 집합(노드→로그 연동). */
+  private related: Set<number> = new Set()
+  private relatedKey: string | null = null
   private readonly activeLevels = new Set<LogLevel>(ALL_LEVELS)
   private tagQuery = ''
   private textQuery = ''
@@ -126,6 +131,8 @@ export class LogView {
     this.name = dump?.name ?? ''
     this.parsed = dump ? parseAll(this.lines) : []
     this.selectedLine = null
+    this.related = new Set()
+    this.relatedKey = null
     this.host.classList.toggle('is-active', Boolean(dump))
     ;(this.host.querySelector('.logview__title') as HTMLElement).textContent = this.name
     this.applyFilter()
@@ -135,6 +142,15 @@ export class LogView {
   setSelectedLine(index: number | null): void {
     if (this.selectedLine === index) return
     this.selectedLine = index
+    this.renderWindow()
+  }
+
+  /** 선택된 파일 노드와 연관된 라인을 강조한다(노드→로그 연동). (04 §7, M11_5) */
+  setRelatedFile(file: string | null, sites: readonly LogSite[]): void {
+    const key = file && this.currentKey ? `${this.currentKey}:${file}` : null
+    if (this.relatedKey === key) return
+    this.relatedKey = key
+    this.related = file ? relatedLogLines(this.lines, this.parsed, sites, file) : new Set()
     this.renderWindow()
   }
 
@@ -168,6 +184,7 @@ export class LogView {
       const fields = this.parsed[originalIndex]
       const row = document.createElement('div')
       row.className = fields ? `logview__row level-${fields.level}` : 'logview__row'
+      if (this.related.has(originalIndex)) row.classList.add('is-related')
       if (originalIndex === this.selectedLine) row.classList.add('is-selected')
       row.addEventListener('click', () =>
         this.callbacks.onSelectLine(originalIndex, this.lines[originalIndex])
