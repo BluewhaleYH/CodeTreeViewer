@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { readFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { SourceParser } from './analysis/parser'
 import { resolveParserConfig } from './analysis/wasm-paths'
 import { analyzeProject } from './analysis/runner'
@@ -70,6 +70,25 @@ export function registerIpcHandlers(): void {
         }
       })
       return { summary: result.summary, graph: result.graph, logSites: result.logSites }
+    }
+  )
+
+  // 프로젝트 내 소스 파일 읽기(코드 뷰용, 읽기 전용). (04 §6, M11_5)
+  ipcMain.handle(
+    'source:read',
+    async (
+      _event,
+      payload: { projectPath: string; relativePath: string }
+    ): Promise<string | null> => {
+      const target = join(payload.projectPath, payload.relativePath)
+      const base = resolve(payload.projectPath)
+      // 경로 이탈(../) 방지: 프로젝트 경계 안에 있어야 한다.
+      if (!resolve(target).startsWith(base)) return null
+      try {
+        return await readFile(target, 'utf8')
+      } catch {
+        return null
+      }
     }
   )
 

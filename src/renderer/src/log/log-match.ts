@@ -26,3 +26,22 @@ export function matchLogSites(
   }
   return out
 }
+
+/**
+ * 특정 소스 파일과 연관된 로그 라인 인덱스 집합. (노드 → 로그 연동, 04 §7, M11_5)
+ * 그 파일의 로그 사이트에 매칭되는 라인을 찾는다.
+ */
+export function relatedLogLines(
+  lines: readonly string[],
+  parsed: readonly (LogcatFields | null)[],
+  sites: readonly LogSite[],
+  file: string
+): Set<number> {
+  const fileSites = sites.filter((s) => s.file === file)
+  const out = new Set<number>()
+  if (fileSites.length === 0) return out
+  for (let i = 0; i < lines.length; i += 1) {
+    if (matchLogSites(lines[i], parsed[i] ?? null, fileSites).length > 0) out.add(i)
+  }
+  return out
+}

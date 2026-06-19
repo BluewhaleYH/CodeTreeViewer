@@ -84,7 +84,11 @@ const api = {
   },
 
   /** 로그 덤프 파일 열기 다이얼로그. 취소 시 null. (04 §2, M11_1) */
-  openLogDialog: (): Promise<LogOpenResult | null> => ipcRenderer.invoke('log:open')
+  openLogDialog: (): Promise<LogOpenResult | null> => ipcRenderer.invoke('log:open'),
+
+  /** 프로젝트 내 소스 파일 읽기(코드 뷰, 읽기 전용). 실패 시 null. (04 §6, M11_5) */
+  readSource: (projectPath: string, relativePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('source:read', { projectPath, relativePath })
 }
 
 contextBridge.exposeInMainWorld('codetree', api)

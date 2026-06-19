@@ -26,6 +26,7 @@ declare global {
       onSessionNotice: (handler: (notice: SessionNotice) => void) => () => void
       onUpdateNotice: (handler: (notice: UpdateNotice) => void) => () => void
       openLogDialog: () => Promise<LogOpenResult | null>
+      readSource: (projectPath: string, relativePath: string) => Promise<string | null>
     }
   }
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildLogPattern, type LogSite } from '../src/shared/log'
-import { matchLogSites } from '../src/renderer/src/log/log-match'
-import { parseLogcatLine } from '../src/renderer/src/log/logcat-parse'
+import { matchLogSites, relatedLogLines } from '../src/renderer/src/log/log-match'
+import { parseAll, parseLogcatLine } from '../src/renderer/src/log/logcat-parse'
 
 describe('buildLogPattern (M11_4)', () => {
   it('정적 세그먼트는 이스케이프, 가변부는 와일드카드', () => {
@@ -70,5 +70,23 @@ describe('matchLogSites (M11_4)', () => {
   it('일치 후보가 없으면 빈 배열', () => {
     const raw = '06-19 14:22:01.118  1234  1300 D MainActivity: onCreate()'
     expect(matchLogSites(raw, parseLogcatLine(raw), sites)).toEqual([])
+  })
+})
+
+describe('relatedLogLines — 노드→로그 연동 (M11_5)', () => {
+  const lines = [
+    '06-19 14:22:01.118  1234  1300 D MainActivity: onCreate()',
+    '06-19 14:22:01.400  1234  1305 E Repository: load() failed: timeout',
+    '06-19 14:22:01.401  1234  1305 E Repository: load() failed: io'
+  ]
+  const parsed = parseAll(lines)
+
+  it('해당 파일의 사이트에 매칭되는 라인 인덱스를 모은다', () => {
+    const got = relatedLogLines(lines, parsed, sites, 'a/Repository.kt')
+    expect([...got].sort()).toEqual([1, 2])
+  })
+
+  it('사이트 없는 파일이면 빈 집합', () => {
+    expect(relatedLogLines(lines, parsed, sites, 'z/None.kt').size).toBe(0)
   })
 })
