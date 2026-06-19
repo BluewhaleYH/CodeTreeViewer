@@ -153,6 +153,7 @@ describe('TabStore — 분석 상태 (M3_3)', () => {
     nodeCount: 3,
     functionNodeCount: 0,
     externalNodeCount: 0,
+    domainCount: 1,
     edgeCount: 2,
     failures: []
   }

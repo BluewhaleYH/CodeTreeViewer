@@ -69,7 +69,7 @@ function renderAnalysis(tab: TabState): HTMLElement {
     const fileNodeCount = summary.nodeCount - summary.functionNodeCount - summary.externalNodeCount
     const graphStat = document.createElement('p')
     graphStat.className = 'analysis__stat analysis__substat'
-    graphStat.textContent = `의존성: 파일 ${fileNodeCount} · 함수 ${summary.functionNodeCount} · 외부 ${summary.externalNodeCount} · 엣지 ${summary.edgeCount}`
+    graphStat.textContent = `의존성: 파일 ${fileNodeCount} · 함수 ${summary.functionNodeCount} · 외부 ${summary.externalNodeCount} · 엣지 ${summary.edgeCount} · 영역 ${summary.domainCount}`
     el.appendChild(graphStat)
 
     if (summary.failureCount > 0) {
