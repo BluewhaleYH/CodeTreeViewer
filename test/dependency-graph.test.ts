@@ -66,22 +66,51 @@ describe('파일 의존성 그래프 (M4_2)', () => {
     ])
   })
 
-  it('미해결 import(외부 라이브러리)는 엣지를 만들지 않는다(외부 노드는 M4_3)', async () => {
+  it('미해결 import(외부 라이브러리)는 external 노드 + 엣지로 분리한다 (M4_3)', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-dep-'))
     await write('a/A.java', 'package a;\nimport java.util.List;\nclass A {}')
 
-    const { graph } = await runAnalysis(root, parser)
-    expect(graph.nodes).toHaveLength(1)
-    expect(graph.edges).toHaveLength(0)
+    const { graph, summary } = await runAnalysis(root, parser)
+    const ext = graph.nodes.find((n) => n.external)
+    expect(ext?.name).toBe('java.util.List')
+    expect(summary.externalNodeCount).toBe(1)
+    expect(graph.edges).toHaveLength(1)
+    expect(graph.edges[0].from).toBe(fileNodeId('a/A.java'))
+    expect(graph.edges[0].to).toBe(ext?.id)
   })
 
-  it('요약에 노드/엣지 수가 담긴다', async () => {
+  it('같은 외부 타입을 여러 파일이 import하면 external 노드는 1개로 합쳐진다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-dep-'))
-    await write('a/A.java', 'package a;\nimport b.B;\nclass A {}')
+    await write('a/A.java', 'package a;\nimport ext.Lib;\nclass A {}')
+    await write('a/B.java', 'package a;\nimport ext.Lib;\nclass B {}')
+
+    const { graph } = await runAnalysis(root, parser)
+    expect(graph.nodes.filter((n) => n.external)).toHaveLength(1)
+    expect(graph.edges.filter((e) => e.to.startsWith('external:'))).toHaveLength(2)
+  })
+
+  it('Kotlin은 파일명이 아닌 선언명으로만 해석한다(오탐 방지)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-dep-'))
+    // Box.kt는 class Container를 선언(파일명≠클래스명).
+    await write('b/Box.kt', 'package b\nclass Container')
+    await write('a/ByName.kt', 'package a\nimport b.Container\nclass ByName')
+    await write('a/ByFile.kt', 'package a\nimport b.Box\nclass ByFile')
+
+    const { graph } = await runAnalysis(root, parser)
+    // b.Container는 내부 해석(Box.kt), b.Box는 외부(파일명 인덱스 미사용).
+    const internalEdge = graph.edges.find((e) => e.to === fileNodeId('b/Box.kt'))
+    expect(internalEdge?.from).toBe(fileNodeId('a/ByName.kt'))
+    expect(graph.nodes.find((n) => n.external)?.name).toBe('b.Box')
+  })
+
+  it('요약에 노드/엣지/외부 수가 담긴다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-dep-'))
+    await write('a/A.java', 'package a;\nimport b.B;\nimport ext.X;\nclass A {}')
     await write('b/B.java', 'package b;\nclass B {}')
 
     const { summary } = await runAnalysis(root, parser)
-    expect(summary.nodeCount).toBe(2)
-    expect(summary.edgeCount).toBe(1)
+    expect(summary.nodeCount).toBe(3) // A, B, external X
+    expect(summary.externalNodeCount).toBe(1)
+    expect(summary.edgeCount).toBe(2)
   })
 })
