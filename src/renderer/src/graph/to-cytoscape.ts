@@ -11,27 +11,31 @@ export function toCytoscapeElements(
   graph: CodeGraph,
   domainColors: Map<string, string> = new Map()
 ): ElementDefinition[] {
-  const nodes: ElementDefinition[] = graph.nodes
-    .filter((node) => node.kind !== 'function')
-    .map((node) => ({
-      data: {
-        id: node.id,
-        label: node.name,
-        kind: node.kind,
-        domain: node.domain ?? '',
-        external: node.external ? 'true' : 'false',
-        color: colorFor(node, domainColors)
-      }
-    }))
-
-  const edges: ElementDefinition[] = graph.edges.map((edge) => ({
+  const includedNodes = graph.nodes.filter((node) => node.kind !== 'function')
+  const includedIds = new Set(includedNodes.map((n) => n.id))
+  const nodes: ElementDefinition[] = includedNodes.map((node) => ({
     data: {
-      id: edge.id,
-      source: edge.from,
-      target: edge.to,
-      type: edge.type
+      id: node.id,
+      label: node.name,
+      kind: node.kind,
+      domain: node.domain ?? '',
+      external: node.external ? 'true' : 'false',
+      color: colorFor(node, domainColors)
     }
   }))
+
+  // 양 끝이 모두 렌더되는 노드인 엣지만 포함한다. function-call 엣지(함수 노드 끝점)는
+  // 함수 노드 미렌더(M10_2 전)이므로 자연히 제외 → 끊긴 엣지로 인한 cytoscape 오류 방지. (M10_1)
+  const edges: ElementDefinition[] = graph.edges
+    .filter((edge) => includedIds.has(edge.from) && includedIds.has(edge.to))
+    .map((edge) => ({
+      data: {
+        id: edge.id,
+        source: edge.from,
+        target: edge.to,
+        type: edge.type
+      }
+    }))
 
   return [...nodes, ...edges]
 }

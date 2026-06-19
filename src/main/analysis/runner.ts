@@ -93,7 +93,8 @@ async function analyzeScanned(
     functionNodeCount: graph.nodes.filter((n) => n.kind === 'function').length,
     externalNodeCount: graph.nodes.filter((n) => n.external).length,
     domainCount: domains.size,
-    edgeCount: graph.edges.length,
+    edgeCount: graph.edges.filter((e) => e.type === 'file-dependency').length,
+    callEdgeCount: graph.edges.filter((e) => e.type === 'function-call').length,
     failures
   }
   return { summary, graph }

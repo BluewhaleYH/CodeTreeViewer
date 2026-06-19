@@ -73,5 +73,6 @@ export const DEMO_SUMMARY: AnalysisSummary = {
   externalNodeCount: 1,
   domainCount: 3,
   edgeCount: 7,
+  callEdgeCount: 0,
   failures: []
 }

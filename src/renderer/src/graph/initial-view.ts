@@ -24,16 +24,17 @@ export function selectInitialView(
 ): InitialView {
   const renderNodes = full.nodes.filter((node) => node.kind !== 'function')
   const total = renderNodes.length
+  const renderable = new Set(renderNodes.map((n) => n.id))
+  // 렌더 노드 사이 엣지만(function-call 등 함수 노드 끝점 엣지는 제외). (M10_1)
+  const renderEdges = full.edges.filter((e) => renderable.has(e.from) && renderable.has(e.to))
 
   if (total <= maxNodes) {
     return {
-      graph: { nodes: renderNodes, edges: full.edges },
+      graph: { nodes: renderNodes, edges: renderEdges },
       reduced: false,
       totalRenderable: total
     }
   }
-
-  const renderable = new Set(renderNodes.map((n) => n.id))
   const incoming = new Set(full.edges.map((e) => e.to))
   const adjacency = new Map<string, string[]>()
   for (const edge of full.edges) {
