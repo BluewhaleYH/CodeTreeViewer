@@ -101,11 +101,112 @@ body {
   align-self: center;
 }
 
-/* 작업 영역 */
+/* 작업 영역: 로그 분석 시 [로그] [그래프] 가로 분할. (04 §6, M11) */
 .workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 그래프 등 메인 영역(절대배치 자식들의 기준). */
+.ws-main {
   position: relative;
   flex: 1;
   overflow: hidden;
+}
+
+/* 로그 패널(좌측). (04 §2, M11_1) 리사이즈는 후속. */
+.ws-log {
+  width: 420px;
+  max-width: 50%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.ws-log[hidden] {
+  display: none;
+}
+
+.logview__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.logview__title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logview__count {
+  flex: 1;
+  font-size: 11px;
+}
+
+.logview__btn {
+  border: 1px solid var(--border);
+  background: var(--bg-tab);
+  color: var(--fg);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.logview__btn:hover {
+  filter: brightness(1.15);
+}
+
+.logview__body {
+  flex: 1;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.logview__lines {
+  min-width: 100%;
+  width: max-content;
+}
+
+.logview__lines.is-wrap {
+  width: 100%;
+}
+
+.logview__row {
+  display: flex;
+}
+
+.logview__row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.logview__ln {
+  flex: 0 0 auto;
+  width: 56px;
+  padding: 0 10px 0 0;
+  text-align: right;
+  color: var(--fg-muted);
+  user-select: none;
+}
+
+.logview__text {
+  white-space: pre;
+  padding-right: 12px;
+}
+
+.logview__lines.is-wrap .logview__text {
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 그래프 캔버스(Cytoscape 호스트) */

@@ -28,6 +28,11 @@ export function buildAppMenu(): void {
           accelerator: 'Ctrl+O',
           click: () => emit('menu:open-project')
         },
+        {
+          label: '로그 덤프 열기…',
+          accelerator: 'Ctrl+L',
+          click: () => emit('menu:open-log')
+        },
         { type: 'separator' },
         { label: '새 탭', accelerator: 'Ctrl+T', click: () => emit('menu:new-tab') },
         { label: '탭 닫기', accelerator: 'Ctrl+W', click: () => emit('menu:close-tab') },
