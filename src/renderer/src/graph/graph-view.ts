@@ -47,6 +47,7 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     selector: 'node.selected',
     style: { 'border-width': 3, 'border-color': '#ffffff', 'border-style': 'solid' }
   },
+  { selector: '.dimmed', style: { opacity: 0.16 } },
   {
     selector: 'edge',
     style: {
@@ -191,11 +192,19 @@ export class GraphView {
     this.onSelectNode?.(id)
   }
 
+  /**
+   * 선택 노드 강조 + 1-홉 이웃/엣지 강조, 나머지 디엠퍼사이즈. (03 §9, M6_3)
+   */
   private applySelectedStyle(): void {
     const cy = this.cy
     if (!cy) return
-    cy.nodes().removeClass('selected')
-    if (this.selectedId) cy.getElementById(this.selectedId).addClass('selected')
+    cy.elements().removeClass('selected dimmed')
+    if (!this.selectedId) return
+    const node = cy.getElementById(this.selectedId)
+    if (node.length === 0) return
+    node.addClass('selected')
+    // 선택 노드 + 직접 이웃 + 연결 엣지를 제외한 나머지를 흐리게.
+    cy.elements().difference(node.closedNeighborhood()).addClass('dimmed')
   }
 
   /** 노드의 hops-홉 이내 숨은 이웃을 드러낸다. (1-홉=직접 부모/자식) */
