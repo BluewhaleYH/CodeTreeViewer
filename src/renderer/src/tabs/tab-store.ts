@@ -58,11 +58,11 @@ export interface TabState {
   codeView: TabCodeView | null
 }
 
-/** 코드 뷰 대상(읽기 전용 소스 + 강조 라인). (04 §6, M11_5) */
+/** 코드 편집기 대상(소스 + 이동 라인). (04 §6, M11_5; Monaco 편집 M12) */
 export interface TabCodeView {
   file: string
   line: number
-  lines: string[]
+  content: string
 }
 
 const DEFAULT_VIEW_MODE: ViewMode = 'graph'

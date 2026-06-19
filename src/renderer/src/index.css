@@ -327,10 +327,10 @@ body {
   background: rgba(74, 158, 255, 0.18);
 }
 
-/* 코드 뷰(우측 패널). (04 §6, M11_5) */
+/* 코드 편집기(우측 패널, Monaco). (06 §2, M12) */
 .ws-code {
-  width: 440px;
-  max-width: 45%;
+  width: 480px;
+  max-width: 48%;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--border);
@@ -342,7 +342,13 @@ body {
   display: none;
 }
 
-.codeview__header {
+.editorview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editorview__header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -351,7 +357,7 @@ body {
   font-size: 12px;
 }
 
-.codeview__title {
+.editorview__title {
   flex: 1;
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -360,7 +366,7 @@ body {
   text-overflow: ellipsis;
 }
 
-.codeview__btn {
+.editorview__btn {
   border: 1px solid var(--border);
   background: var(--bg-tab);
   color: var(--fg);
@@ -370,34 +376,25 @@ body {
   cursor: pointer;
 }
 
-.codeview__body {
+.editorview__body {
   flex: 1;
-  overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-height: 0;
+}
+
+/* 노드 정보 패널의 '소스 열기' 버튼. (M12_1) */
+.info-panel__open {
+  margin-top: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-tab);
+  color: var(--fg);
   font-size: 12px;
-  line-height: 1.5;
+  cursor: pointer;
 }
 
-.codeview__row {
-  display: flex;
-}
-
-.codeview__row.is-target {
-  background: rgba(226, 179, 65, 0.18);
-}
-
-.codeview__ln {
-  flex: 0 0 auto;
-  width: 44px;
-  padding: 0 10px 0 0;
-  text-align: right;
-  color: var(--fg-muted);
-  user-select: none;
-}
-
-.codeview__text {
-  white-space: pre;
-  padding-right: 12px;
+.info-panel__open:hover {
+  filter: brightness(1.15);
 }
 
 .logview__ln {

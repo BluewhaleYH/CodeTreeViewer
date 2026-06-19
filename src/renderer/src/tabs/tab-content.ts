@@ -15,6 +15,8 @@ export interface TabContentActions {
   exitBacktrace: () => void
   /** 로그→코드 후보를 선택해 해당 소스 노드로 이동한다. (04 §5, M11_4) */
   openCandidate: (site: LogSite) => void
+  /** 노드의 소스를 편집기로 연다. (06 §2, M12_1) */
+  openSource: (file: string, line: number) => void
 }
 
 /**
@@ -102,6 +104,15 @@ function renderInfoPanel(
   }
 
   panel.append(title, meta)
+
+  // 노드 → 소스 편집기 열기. 외부/미해결 노드는 소스가 없으므로 제외. (06 §2, M12_1)
+  if (!node.external && node.kind === 'file') {
+    const open = document.createElement('button')
+    open.className = 'info-panel__open'
+    open.textContent = '소스 열기'
+    open.addEventListener('click', () => actions.openSource(node.path, node.line ?? 1))
+    panel.appendChild(open)
+  }
 
   // 파일 노드: 정의된 함수 목록(검색·라벨용 데이터). (M4_4)
   if (!node.external) {

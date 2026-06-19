@@ -7,7 +7,7 @@ import { SearchView } from './search/search-view'
 import { buildSearchIndex, focusTargetId } from './search/search-index'
 import { buildDemoGraph, DEMO_SUMMARY } from './graph/demo-graph'
 import { LogView } from './log/log-view'
-import { CodeView } from './log/code-view'
+import { EditorView } from './editor/editor-view'
 import { splitLines } from './log/log-lines'
 import { DEMO_LOG_LINES, DEMO_LOG_SITES, DEMO_CODE_LINES } from './log/demo-log'
 import { fileNodeId } from '../../shared/graph'
@@ -71,16 +71,16 @@ if (root) {
       const activeId = store.getActiveId()
       if (activeId) store.setCodeView(activeId, null)
     }
-    const codeView = new CodeView(wsCode, { onClose: closeCode })
+    const editorView = new EditorView(wsCode, { onClose: closeCode })
 
-    // 로그→코드 후보 열기: 소스를 읽어 코드 뷰에 표시 + 그래프 노드 포커스(3중 연동). (04 §6·§7, M11_5)
-    const openCandidate = async (file: string, line: number): Promise<void> => {
+    // 소스를 편집기로 연다(노드→소스 / 로그 후보→코드). 그래프 노드 포커스(3중 연동). (06 §2, M12_1)
+    const openSource = async (file: string, line: number): Promise<void> => {
       const activeId = store.getActiveId()
       const active = store.getActive()
       if (!activeId || !active?.projectPath) return
       selectNode(fileNodeId(file))
       const content = await window.codetree.readSource(active.projectPath, file)
-      if (content !== null) store.setCodeView(activeId, { file, line, lines: splitLines(content) })
+      if (content !== null) store.setCodeView(activeId, { file, line, content })
     }
 
     const isCapture = window.codetree.captureMode
@@ -102,7 +102,8 @@ if (root) {
         openProject: () => void openProject(),
         backtrace: startBacktrace,
         exitBacktrace,
-        openCandidate: (site) => void openCandidate(site.file, site.line)
+        openCandidate: (site) => void openSource(site.file, site.line),
+        openSource: (file, line) => void openSource(file, line)
       })
       const active = store.getActive()
       graphView.sync(active)
@@ -122,17 +123,17 @@ if (root) {
         wsLog.hidden = true
         logView.setDump(null, null)
       }
-      // 코드 뷰(우측): 역추적 후보 소스. (04 §6, M11_5)
+      // 코드 편집기(우측): 노드/로그 후보 소스. (06 §2, M12_1)
       if (active && active.codeView) {
         wsCode.hidden = false
-        codeView.setData(`${active.id}:${active.codeView.file}:${active.codeView.line}`, {
+        editorView.setFile(`${active.id}:${active.codeView.file}:${active.codeView.line}`, {
           file: active.codeView.file,
           line: active.codeView.line,
-          lines: active.codeView.lines
+          content: active.codeView.content
         })
       } else {
         wsCode.hidden = true
-        codeView.setData(null, null)
+        editorView.setFile(null, null)
       }
       // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
       if (active && active.analysis.status === 'done' && active.analysis.graph) {
@@ -226,11 +227,11 @@ if (root) {
           lines: DEMO_LOG_LINES,
           selectedLine: 5 // E Repository load failed 라인 → 다중 후보 매칭
         })
-        // 3-뷰 데모: 코드 뷰에 매칭 소스 표시(우측). (M11_5)
+        // 3-뷰 데모: 코드 편집기에 매칭 소스 표시(우측). (M11_5, M12_1)
         store.setCodeView(demo.id, {
           file: 'core/src/main/kotlin/Repository.kt',
           line: 14,
-          lines: DEMO_CODE_LINES
+          content: DEMO_CODE_LINES.join('\n')
         })
         render()
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
