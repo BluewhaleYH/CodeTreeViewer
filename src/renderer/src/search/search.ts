@@ -10,12 +10,40 @@ export interface SearchOptions {
   caseSensitive: boolean
   exact: boolean
   includePath: boolean
+  /** 퍼지(subsequence) 매칭 — 오탈자·부분 토큰 허용. (05 §4) */
+  fuzzy: boolean
 }
 
 export const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
   caseSensitive: false,
   exact: false,
-  includePath: false
+  includePath: false,
+  fuzzy: false
+}
+
+/**
+ * 퍼지(subsequence) 점수. query의 문자가 순서대로 text에 나타나면 매칭.
+ * 점수는 갭/시작 오프셋 합(낮을수록 좋음). 매칭 실패는 null.
+ */
+function fuzzyScore(text: string, query: string): number | null {
+  let textIndex = 0
+  let prev = -1
+  let score = 0
+  for (const ch of query) {
+    let found = -1
+    while (textIndex < text.length) {
+      if (text[textIndex] === ch) {
+        found = textIndex
+        textIndex += 1
+        break
+      }
+      textIndex += 1
+    }
+    if (found === -1) return null
+    score += prev >= 0 ? found - prev - 1 : found
+    prev = found
+  }
+  return score
 }
 
 export function searchEntries(
@@ -32,7 +60,11 @@ export function searchEntries(
   for (const entry of index) {
     const name = norm(entry.name)
     let score = -1
-    if (options.exact) {
+    if (options.fuzzy && !options.exact) {
+      let fz = fuzzyScore(name, q)
+      if (fz === null && options.includePath) fz = fuzzyScore(norm(entry.path), q)
+      if (fz !== null) score = fz
+    } else if (options.exact) {
       if (name === q) score = 0
     } else if (name === q) {
       score = 0

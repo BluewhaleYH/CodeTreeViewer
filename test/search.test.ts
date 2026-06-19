@@ -33,7 +33,8 @@ describe('코드 검색 매칭/정렬 (M7_2)', () => {
     const r = searchEntries(index, 'load', {
       caseSensitive: false,
       exact: true,
-      includePath: false
+      includePath: false,
+      fuzzy: false
     })
     expect(r.map((e) => e.name)).toEqual(['load'])
   })
@@ -42,7 +43,8 @@ describe('코드 검색 매칭/정렬 (M7_2)', () => {
     const r = searchEntries(index, 'REPO', {
       caseSensitive: true,
       exact: false,
-      includePath: false
+      includePath: false,
+      fuzzy: false
     })
     expect(r).toHaveLength(0)
   })
@@ -51,18 +53,41 @@ describe('코드 검색 매칭/정렬 (M7_2)', () => {
     const withPath = searchEntries(index, 'app', {
       caseSensitive: false,
       exact: false,
-      includePath: true
+      includePath: true,
+      fuzzy: false
     })
     expect(withPath.map((e) => e.name)).toContain('Main.java')
     const withoutPath = searchEntries(index, 'app', {
       caseSensitive: false,
       exact: false,
-      includePath: false
+      includePath: false,
+      fuzzy: false
     })
     expect(withoutPath).toHaveLength(0)
   })
 
   it('빈 질의는 빈 결과', () => {
     expect(searchEntries(index, '   ')).toHaveLength(0)
+  })
+})
+
+describe('퍼지 검색 (M7_3)', () => {
+  const fuzzy = { caseSensitive: false, exact: false, includePath: false, fuzzy: true }
+
+  it('subsequence(순서 유지)면 매칭한다', () => {
+    const names = searchEntries(index, 'rpk', fuzzy).map((e) => e.name)
+    // r-e-p-o...k(.kt): Repository.kt / RepositoryImpl.kt 매칭
+    expect(names).toContain('Repository.kt')
+    expect(names).toContain('RepositoryImpl.kt')
+  })
+
+  it('순서가 어긋나면 매칭 안 함', () => {
+    // 'kr': k(.kt) 다음에 r 없음
+    expect(searchEntries(index, 'kr', fuzzy)).toHaveLength(0)
+  })
+
+  it('갭이 적을수록 상위(Repository가 RepositoryImpl보다 rpk에서 우선)', () => {
+    const names = searchEntries(index, 'rpk', fuzzy).map((e) => e.name)
+    expect(names[0]).toBe('Repository.kt')
   })
 })

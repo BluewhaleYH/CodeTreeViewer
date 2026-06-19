@@ -30,6 +30,7 @@ export class SearchView {
           <label><input type="checkbox" data-opt="caseSensitive" /> Aa</label>
           <label><input type="checkbox" data-opt="exact" /> 정확</label>
           <label><input type="checkbox" data-opt="includePath" /> 경로</label>
+          <label><input type="checkbox" data-opt="fuzzy" /> 퍼지</label>
         </div>
       </div>
       <div class="search__results"></div>
