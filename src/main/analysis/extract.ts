@@ -13,11 +13,18 @@ export interface ImportRef {
   line: number
 }
 
+export interface FunctionDef {
+  name: string
+  line: number
+}
+
 export interface FileInfo {
   file: ScannedFile
   packageName: string | null
   topLevelNames: string[]
   imports: ImportRef[]
+  /** 함수/메서드 정의(검색·라벨용, 호출 관계 아님). (02 §1, §4.1, D7) */
+  functions: FunctionDef[]
 }
 
 type Node = Parser.SyntaxNode
@@ -74,7 +81,14 @@ function extractJava(root: Node, file: ScannedFile): FileInfo {
     }
   }
 
-  return { file, packageName, topLevelNames, imports }
+  // 메서드 정의(중첩 클래스 포함). 호출 관계는 만들지 않는다(M10).
+  const functions: FunctionDef[] = []
+  for (const method of root.descendantsOfType('method_declaration')) {
+    const name = method.childForFieldName('name')?.text
+    if (name) functions.push({ name, line: method.startPosition.row + 1 })
+  }
+
+  return { file, packageName, topLevelNames, imports, functions }
 }
 
 function extractKotlin(root: Node, file: ScannedFile): FileInfo {
@@ -108,5 +122,12 @@ function extractKotlin(root: Node, file: ScannedFile): FileInfo {
     }
   }
 
-  return { file, packageName, topLevelNames, imports }
+  // 함수 정의(최상위 + 멤버). 호출 관계는 만들지 않는다(M10).
+  const functions: FunctionDef[] = []
+  for (const fn of root.descendantsOfType('function_declaration')) {
+    const name = fn.namedChildren.find((n) => n.type === 'simple_identifier')?.text
+    if (name) functions.push({ name, line: fn.startPosition.row + 1 })
+  }
+
+  return { file, packageName, topLevelNames, imports, functions }
 }

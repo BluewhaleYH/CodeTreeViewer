@@ -114,3 +114,35 @@ describe('파일 의존성 그래프 (M4_2)', () => {
     expect(summary.edgeCount).toBe(2)
   })
 })
+
+describe('함수/메서드 정의 노드 (M4_4)', () => {
+  it('Java 메서드를 function 노드로 추출한다(호출 엣지 없음)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-fn-'))
+    await write('a/A.java', 'package a;\nclass A {\n  void foo() {}\n  int bar(int x) { return x; }\n}')
+
+    const { graph, summary } = await runAnalysis(root, parser)
+    const fns = graph.nodes.filter((n) => n.kind === 'function')
+    expect(fns.map((n) => n.name).sort()).toEqual(['bar', 'foo'])
+    expect(fns.every((n) => n.path === 'a/A.java')).toBe(true)
+    expect(summary.functionNodeCount).toBe(2)
+    // 정의만: 함수 관련 엣지는 없음
+    expect(graph.edges).toHaveLength(0)
+  })
+
+  it('Kotlin 함수를 function 노드로 추출한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-fn-'))
+    await write('a/Main.kt', 'package a\nfun top() {}\nclass C {\n  fun member() {}\n}')
+
+    const { summary } = await runAnalysis(root, parser)
+    expect(summary.functionNodeCount).toBe(2)
+  })
+
+  it('function 노드는 라인 정보를 갖는다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-fn-'))
+    await write('a/A.java', 'package a;\nclass A {\n  void foo() {}\n}')
+
+    const { graph } = await runAnalysis(root, parser)
+    const fn = graph.nodes.find((n) => n.kind === 'function')
+    expect(fn?.line).toBe(3)
+  })
+})

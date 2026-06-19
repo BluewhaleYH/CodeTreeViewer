@@ -60,7 +60,7 @@ describe('AnalysisCache get/set (M3_4)', () => {
 
     const entry = {
       root: '/p/x',
-      version: 3,
+      version: 4,
       fingerprint: 'abc',
       summary: {
         root: '/p/x',
@@ -70,6 +70,7 @@ describe('AnalysisCache get/set (M3_4)', () => {
         byLanguage: { java: 1, kotlin: 0 },
         skippedDirCount: 0,
         nodeCount: 1,
+        functionNodeCount: 0,
         externalNodeCount: 0,
         edgeCount: 0,
         failures: []

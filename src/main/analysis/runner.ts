@@ -51,8 +51,8 @@ async function analyzeScanned(
       try {
         infos.push(extractFileInfo(tree, file))
       } catch {
-        // 추출 실패해도 파일 노드는 유지(import만 비움).
-        infos.push({ file, packageName: null, topLevelNames: [], imports: [] })
+        // 추출 실패해도 파일 노드는 유지(import/함수만 비움).
+        infos.push({ file, packageName: null, topLevelNames: [], imports: [], functions: [] })
       }
       parsedCount += 1
       byLanguage[file.language] += 1
@@ -82,6 +82,7 @@ async function analyzeScanned(
     byLanguage,
     skippedDirCount: scanResult.skippedDirs.length,
     nodeCount: graph.nodes.length,
+    functionNodeCount: graph.nodes.filter((n) => n.kind === 'function').length,
     externalNodeCount: graph.nodes.filter((n) => n.external).length,
     edgeCount: graph.edges.length,
     failures
