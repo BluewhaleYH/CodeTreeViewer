@@ -1,12 +1,18 @@
 name: build
 
-# 패키징 산출물을 멀티 OS 러너에서 빌드한다. (DEPLOY.md §6, 배포-2)
-# main push / PR / 수동 실행 시 빌드 검증(퍼블리시 없음). 태그 릴리즈 퍼블리시는 M9_4에서 추가.
+# 패키징 산출물을 멀티 OS 러너에서 빌드한다. (DEPLOY.md §6)
+# - main push / PR / 수동 실행: 빌드 검증(퍼블리시 없음).
+# - 태그(v*) push: GitHub Releases에 퍼블리시 + latest*.yml 생성(자동 업데이트 피드). (DEPLOY.md §4)
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
+
+# 태그 퍼블리시 시 릴리즈 생성을 위해 필요.
+permissions:
+  contents: write
 
 jobs:
   linux:
@@ -21,7 +27,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Package (AppImage + deb)
-        run: npx electron-builder --linux AppImage deb --publish never
+        run: npx electron-builder --linux AppImage deb --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: linux-dist
@@ -42,7 +50,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Package (nsis + zip)
-        run: npx electron-builder --win nsis zip --publish never
+        run: npx electron-builder --win nsis zip --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: windows-dist

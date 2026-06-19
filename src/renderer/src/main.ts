@@ -87,15 +87,14 @@ if (root) {
     }
 
     const noticeHost = root.querySelector<HTMLElement>('#session-notice')
-    // 세션 손상 등 비차단 알림 배너. 사용자가 닫을 수 있으며 동작을 막지 않는다. (01 §10)
-    const showSessionNotice = (notice: { kind: string }): void => {
+    // 비차단 알림 배너(세션 손상·업데이트 등). 사용자가 닫을 수 있으며 동작을 막지 않는다. (01 §10, DEPLOY.md §4)
+    const SESSION_CORRUPTED_MSG = '이전 세션 파일이 손상되어 백업본 또는 초기 상태로 복원했습니다.'
+    const UPDATE_DOWNLOADED_MSG = '새 버전을 내려받았습니다. 앱을 재시작하면 업데이트가 적용됩니다.'
+    const showBanner = (message: string): void => {
       if (!noticeHost) return
       noticeHost.replaceChildren()
       const msg = document.createElement('span')
-      msg.textContent =
-        notice.kind === 'corrupted'
-          ? '이전 세션 파일이 손상되어 백업본 또는 초기 상태로 복원했습니다.'
-          : '세션 알림'
+      msg.textContent = message
       const close = document.createElement('button')
       close.className = 'session-notice__close'
       close.setAttribute('aria-label', '닫기')
@@ -104,7 +103,10 @@ if (root) {
       noticeHost.append(msg, close)
       noticeHost.removeAttribute('hidden')
     }
-    window.codetree.onSessionNotice(showSessionNotice)
+    window.codetree.onSessionNotice((notice) =>
+      showBanner(notice.kind === 'corrupted' ? SESSION_CORRUPTED_MSG : '세션 알림')
+    )
+    window.codetree.onUpdateNotice(() => showBanner(UPDATE_DOWNLOADED_MSG))
 
     window.codetree.onMenuAction((action) => {
       if (action === 'open-project') void openProject()
@@ -127,7 +129,7 @@ if (root) {
         // 검색 히스토리 시연(빈 입력 → 최근 검색어).
         searchView.seedHistory(['Repository', 'ViewModel', 'load'])
         // 세션 손상 알림 배너 시연.
-        showSessionNotice({ kind: 'corrupted' })
+        showBanner(SESSION_CORRUPTED_MSG)
         return
       }
 
