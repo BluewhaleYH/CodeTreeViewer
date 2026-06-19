@@ -36,6 +36,19 @@ if (root) {
     const graphView = new GraphView(wsGraph, selectNode)
     const searchView = new SearchView(wsSearch, (entry) => selectNode(focusTargetId(entry)))
 
+    const isCapture = window.codetree.captureMode
+
+    // 세션 저장: 탭/활성 탭이 바뀔 때만 IPC 전송(변경 감지). (01 §5, M8_3)
+    let lastSerialized = ''
+    const persistTabs = (): void => {
+      if (isCapture) return // 데모 시드가 실제 세션을 덮어쓰지 않도록.
+      const snapshot = store.serialize()
+      const json = JSON.stringify(snapshot)
+      if (json === lastSerialized) return
+      lastSerialized = json
+      void window.codetree.saveTabs(snapshot.tabs, snapshot.activeIndex)
+    }
+
     const render = (): void => {
       renderTabBar(tabbar, store)
       renderOverlay(wsOverlay, store, { openProject: () => void openProject() })
@@ -48,6 +61,7 @@ if (root) {
       } else {
         wsSearch.style.display = 'none'
       }
+      persistTabs()
     }
     store.subscribe(render)
 
@@ -80,19 +94,36 @@ if (root) {
       }
     })
 
-    store.addEmptyTab()
+    // 부트: 저장된 세션을 복원한다. 프로젝트 탭은 재분석한다. 없으면 빈 탭. (01 §5, M8_3)
+    const boot = async (): Promise<void> => {
+      if (isCapture) {
+        // 자체 검수(스크린샷) 모드: 데모 그래프를 시드해 캔버스 렌더를 확인한다.
+        store.addEmptyTab()
+        const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
+        store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
+        store.setSelectedNode(demo.id, fileNodeId('core/src/main/kotlin/Repository.kt'))
+        render()
+        // 검색 히스토리 시연(빈 입력 → 최근 검색어).
+        searchView.seedHistory(['Repository', 'ViewModel', 'load'])
+        return
+      }
 
-    // 자체 검수(스크린샷) 모드: 데모 그래프를 시드해 캔버스 렌더를 확인한다.
-    const isCapture = window.codetree.captureMode
-    if (isCapture) {
-      const demo = store.openProject('/home/dev/AndroidProject', 'AndroidProject')
-      store.finishAnalysis(demo.id, DEMO_SUMMARY, buildDemoGraph())
-      store.setSelectedNode(demo.id, fileNodeId('core/src/main/kotlin/Repository.kt'))
+      const session = await window.codetree.loadSession()
+      if (session.tabs.length > 0) {
+        const restored = store.restore(session.tabs, session.activeIndex)
+        // 복원 직후 상태를 마지막 직렬화 기준으로 잡아 불필요한 재저장을 막는다.
+        lastSerialized = JSON.stringify(store.serialize())
+        render()
+        restored.forEach((tab, i) => {
+          const path = session.tabs[i]?.projectPath
+          if (path) void analyze(tab.id, path)
+        })
+      } else {
+        store.addEmptyTab()
+        render()
+      }
     }
 
-    render()
-
-    // 검색 히스토리 시연(빈 입력 → 최근 검색어).
-    if (isCapture) searchView.seedHistory(['Repository', 'ViewModel', 'load'])
+    void boot()
   }
 }

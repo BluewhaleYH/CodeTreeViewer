@@ -205,3 +205,86 @@ describe('TabStore — 분석 상태 (M3_3)', () => {
     expect(b.analysis.status).toBe('running')
   })
 })
+
+describe('TabStore — 세션 직렬화/복원 (M8_3)', () => {
+  it('탭 목록과 활성 인덱스를 직렬화한다', () => {
+    const store = new TabStore()
+    store.openProject('/p/A', 'A')
+    store.openProject('/p/B', 'B')
+    store.setActive(store.getTabs()[0].id)
+    const snapshot = store.serialize()
+    expect(snapshot.tabs.map((t) => t.projectPath)).toEqual(['/p/A', '/p/B'])
+    expect(snapshot.tabs.map((t) => t.projectName)).toEqual(['A', 'B'])
+    expect(snapshot.activeIndex).toBe(0)
+  })
+
+  it('빈 탭(프로젝트 미선택)도 직렬화한다', () => {
+    const store = new TabStore()
+    store.addEmptyTab()
+    const snapshot = store.serialize()
+    expect(snapshot.tabs).toHaveLength(1)
+    expect(snapshot.tabs[0].projectPath).toBeNull()
+    expect(snapshot.activeIndex).toBe(0)
+  })
+
+  it('활성 탭이 없으면 activeIndex는 0이다', () => {
+    const store = new TabStore()
+    const snapshot = store.serialize()
+    expect(snapshot.tabs).toHaveLength(0)
+    expect(snapshot.activeIndex).toBe(0)
+  })
+
+  it('직렬화된 탭을 복원하고 활성 탭을 지정한다', () => {
+    const store = new TabStore()
+    const restored = store.restore(
+      [
+        { projectPath: '/p/A', projectName: 'A', view: { mode: 'graph', selectedNodeId: null } },
+        { projectPath: '/p/B', projectName: 'B', view: { mode: 'tree', selectedNodeId: null } }
+      ],
+      1
+    )
+    expect(restored).toHaveLength(2)
+    expect(store.getTabs().map((t) => t.projectName)).toEqual(['A', 'B'])
+    expect(store.getActiveId()).toBe(restored[1].id)
+  })
+
+  it('복원은 기존 탭을 대체한다', () => {
+    const store = new TabStore()
+    store.addEmptyTab()
+    store.openProject('/old', 'Old')
+    store.restore(
+      [{ projectPath: '/new', projectName: 'New', view: { mode: 'graph', selectedNodeId: null } }],
+      0
+    )
+    expect(store.getTabs()).toHaveLength(1)
+    expect(store.getTabs()[0].projectName).toBe('New')
+  })
+
+  it('activeIndex가 범위를 벗어나면 첫 탭을 활성화한다', () => {
+    const store = new TabStore()
+    const restored = store.restore(
+      [{ projectPath: '/p/A', projectName: 'A', view: { mode: 'graph', selectedNodeId: null } }],
+      5
+    )
+    expect(store.getActiveId()).toBe(restored[0].id)
+  })
+
+  it('빈 목록을 복원하면 활성 탭이 없다', () => {
+    const store = new TabStore()
+    store.addEmptyTab()
+    store.restore([], 0)
+    expect(store.getTabs()).toHaveLength(0)
+    expect(store.getActiveId()).toBeNull()
+  })
+
+  it('serialize→restore 왕복이 탭 구성을 보존한다', () => {
+    const store = new TabStore()
+    store.openProject('/p/A', 'A')
+    store.openProject('/p/B', 'B')
+    const snapshot = store.serialize()
+
+    const store2 = new TabStore()
+    store2.restore(snapshot.tabs, snapshot.activeIndex)
+    expect(store2.serialize()).toEqual(snapshot)
+  })
+})

@@ -5,6 +5,7 @@
 
 import type { AnalysisProgress, AnalysisSummary } from '../../../shared/analysis'
 import type { CodeGraph } from '../../../shared/graph'
+import type { PersistedTab } from '../../../shared/session'
 
 /** 시각화 뷰 모드. 토글 UI는 M5/M6에서 연결한다. (03 §5.2) */
 export type ViewMode = 'graph' | 'tree'
@@ -183,5 +184,33 @@ export class TabStore {
       this.activeId = id
       this.emit()
     }
+  }
+
+  /**
+   * 세션 저장용으로 탭 목록을 직렬화한다. (01 §5, M8_3)
+   * M8_3 범위는 탭/프로젝트 경로/활성 탭이며, 뷰 상태(모드/선택 노드)는 기본값으로 둔다.
+   * (뷰 상태 영속은 M8_4)
+   */
+  serialize(): { tabs: PersistedTab[]; activeIndex: number } {
+    const tabs: PersistedTab[] = this.tabs.map((tab) => ({
+      projectPath: tab.projectPath,
+      projectName: tab.projectName,
+      view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null }
+    }))
+    const activeIndex = this.tabs.findIndex((tab) => tab.id === this.activeId)
+    return { tabs, activeIndex: activeIndex === -1 ? 0 : activeIndex }
+  }
+
+  /**
+   * 세션에서 탭 목록을 복원한다. (01 §5, M8_3)
+   * 기존 탭을 대체하고, activeIndex 위치의 탭을 활성화한다. 복원된 탭 목록을 반환한다.
+   * 분석 결과는 영속되지 않으므로 호출 측에서 프로젝트 탭을 재분석한다.
+   */
+  restore(persisted: readonly PersistedTab[], activeIndex: number): TabState[] {
+    this.tabs = persisted.map((p) => createTab(p.projectPath, p.projectName))
+    const active = this.tabs[activeIndex] ?? this.tabs[0] ?? null
+    this.activeId = active ? active.id : null
+    this.emit()
+    return this.tabs
   }
 }
