@@ -2,6 +2,7 @@ import type { TabState, TabStore } from './tab-store'
 import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
 import { assignDomainColors } from '../graph/domain-colors'
 import { buildCallerAdjacency } from '../graph/backtrace'
+import { diffGraphs } from '../graph/graph-diff'
 import { parseLogcatLine } from '../log/logcat-parse'
 import { matchLogSites, confidenceOf, confidenceLabel } from '../log/log-match'
 import type { CodeGraph } from '../../../shared/graph'
@@ -19,6 +20,12 @@ export interface TabContentActions {
   openSource: (file: string, line: number) => void
   /** 영향 범위 표시를 지운다. (06 §5, M12_4) */
   clearImpact: () => void
+  /** 현재 그래프를 비교 스냅샷으로 캡처한다. (03, 06 §5, M14_3) */
+  captureSnapshot: () => void
+  /** 전/후 비교 모드 토글. (M14_3) */
+  setCompare: (on: boolean) => void
+  /** 비교 스냅샷을 해제한다. (M14_3) */
+  clearSnapshot: () => void
 }
 
 /**
@@ -66,6 +73,8 @@ export function renderOverlay(
     if (active.impact) {
       host.appendChild(renderImpactPanel(active.impact, actions))
     }
+    // 전/후 비교 패널. (03, 06 §5, M14_3)
+    host.appendChild(renderComparePanel(active, actions))
     return
   }
 
@@ -284,6 +293,56 @@ function renderImpactPanel(impact: TabState['impact'], actions: TabContentAction
   clear.addEventListener('click', () => actions.clearImpact())
 
   panel.append(title, line, hint, clear)
+  return panel
+}
+
+/** 전/후 비교 패널: 스냅샷 캡처 / 비교 토글 / 요약. (03, 06 §5, M14_3) */
+function renderComparePanel(active: TabState, actions: TabContentActions): HTMLElement {
+  const panel = document.createElement('div')
+  panel.className = 'info-panel compare-panel'
+
+  const title = document.createElement('div')
+  title.className = 'info-panel__title'
+  title.textContent = '전/후 비교'
+  panel.appendChild(title)
+
+  const button = (label: string, onClick: () => void): HTMLButtonElement => {
+    const b = document.createElement('button')
+    b.className = 'compare-panel__btn'
+    b.textContent = label
+    b.addEventListener('click', onClick)
+    return b
+  }
+
+  if (!active.snapshot) {
+    const hint = document.createElement('div')
+    hint.className = 'compare-panel__hint muted'
+    hint.textContent = '현재 그래프를 기준으로 잡고, 편집·재분석 후 변화를 비교합니다.'
+    panel.append(
+      hint,
+      button('스냅샷 캡처', () => actions.captureSnapshot())
+    )
+    return panel
+  }
+
+  if (active.view.compare && active.analysis.graph) {
+    const d = diffGraphs(active.snapshot, active.analysis.graph)
+    const sum = document.createElement('div')
+    sum.className = 'compare-panel__sum muted'
+    sum.textContent = `노드 +${d.addedNodes.length} · -${d.removedNodes.length} · 엣지 +${d.addedEdges} · -${d.removedEdges}`
+    const legend = document.createElement('div')
+    legend.className = 'compare-panel__legend muted'
+    legend.innerHTML =
+      '<span class="compare-add">●</span> 추가 &nbsp; <span class="compare-rem">●</span> 삭제'
+    panel.append(
+      sum,
+      legend,
+      button('비교 종료', () => actions.setCompare(false))
+    )
+  } else {
+    panel.appendChild(button('비교 보기', () => actions.setCompare(true)))
+  }
+  panel.appendChild(button('스냅샷 해제', () => actions.clearSnapshot()))
   return panel
 }
 

@@ -734,6 +734,37 @@ body {
   text-overflow: ellipsis;
 }
 
+/* 전/후 비교 패널. (03, 06 §5, M14_3) */
+.compare-panel__hint,
+.compare-panel__sum,
+.compare-panel__legend {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.compare-panel__btn {
+  margin: 8px 6px 0 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-tab);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.compare-panel__btn:hover {
+  filter: brightness(1.15);
+}
+
+.compare-add {
+  color: #5fd38a;
+}
+
+.compare-rem {
+  color: #e06c75;
+}
+
 /* 재분석 영향 범위 패널. (06 §5, M12_4) */
 .impact-panel {
   border-left: 3px solid #5fd38a;

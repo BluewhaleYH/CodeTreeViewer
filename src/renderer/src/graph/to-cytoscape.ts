@@ -1,6 +1,7 @@
 import type { ElementDefinition } from 'cytoscape'
 import type { CodeGraph, GraphNode } from '../../../shared/graph'
 import { DEFAULT_NODE_COLOR, EXTERNAL_NODE_COLOR } from './domain-colors'
+import { compareStatuses } from './graph-diff'
 
 /**
  * CodeGraph를 Cytoscape elements로 변환한다. (03 §6, §7)
@@ -65,6 +66,37 @@ export function backtraceElements(
       data: { id: edge.id, source: edge.from, target: edge.to, type: edge.type }
     }))
   return [...nodes, ...edges]
+}
+
+/**
+ * 전/후 비교 그래프를 Cytoscape elements로 변환한다. (03, 06 §5, M14_3)
+ * 합집합 노드/엣지에 status(added/removed/common)를 부여해 색으로 구분한다. 함수 노드는 제외.
+ */
+export function compareElements(
+  before: CodeGraph,
+  after: CodeGraph,
+  domainColors: Map<string, string> = new Map()
+): ElementDefinition[] {
+  const { nodes, edges } = compareStatuses(before, after)
+  const included = nodes.filter(({ node }) => node.kind !== 'function')
+  const ids = new Set(included.map(({ node }) => node.id))
+  const nodeEls: ElementDefinition[] = included.map(({ node, status }) => ({
+    data: {
+      id: node.id,
+      label: node.name,
+      kind: node.kind,
+      domain: node.domain ?? '',
+      external: node.external ? 'true' : 'false',
+      color: status === 'common' ? colorFor(node, domainColors) : DEFAULT_NODE_COLOR,
+      status
+    }
+  }))
+  const edgeEls: ElementDefinition[] = edges
+    .filter(({ edge }) => ids.has(edge.from) && ids.has(edge.to))
+    .map(({ edge, status }) => ({
+      data: { id: edge.id, source: edge.from, target: edge.to, type: edge.type, status }
+    }))
+  return [...nodeEls, ...edgeEls]
 }
 
 function colorFor(node: GraphNode, domainColors: Map<string, string>): string {
