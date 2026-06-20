@@ -39,6 +39,10 @@ export interface FileInfo {
   functions: FunctionDef[]
   /** 소스 내 로그 호출 위치(로그→코드 역추적용). (04 §5, M11_4) */
   logSites: LogSite[]
+  /** Java native 메서드의 기대 JNI 맹글링명(Java 측). (M14_1) */
+  nativeMethods: string[]
+  /** C/C++의 JNI 구현 함수명(Java_...). (M14_1) */
+  jniFunctions: string[]
 }
 
 /** 로그 호출로 인식할 리시버(마지막 식별자 기준). (결정: Log.* + 흔한 프레임워크) */
@@ -116,7 +120,42 @@ function extractCFamily(root: Node, file: ScannedFile): FileInfo {
       imports.push({ kind: 'include-system', target: path.text.replace(/^<|>$/g, ''), line })
     }
   }
-  return { file, packageName: null, topLevelNames: [], imports, functions: [], logSites: [] }
+  // JNI 구현 함수(Java_...) 수집. (M14_1)
+  const jniFunctions: string[] = []
+  for (const fn of root.descendantsOfType('function_definition')) {
+    const decl = fn.descendantsOfType('function_declarator')[0]
+    const name = decl?.descendantsOfType('identifier')[0]?.text
+    if (name && name.startsWith('Java_')) jniFunctions.push(name)
+  }
+  return {
+    file,
+    packageName: null,
+    topLevelNames: [],
+    imports,
+    functions: [],
+    logSites: [],
+    nativeMethods: [],
+    jniFunctions
+  }
+}
+
+/** Java FQN(pkg.Class.method)을 기대 JNI 함수명으로 맹글링한다. (단순 시그니처 제외) */
+function jniMangle(fqn: string): string {
+  return `Java_${fqn.replace(/_/g, '_1').replace(/\./g, '_')}`
+}
+
+/** Java 파일의 native 메서드 → 기대 JNI 맹글링명 목록. (M14_1) */
+function extractJavaNativeMethods(root: Node, packageName: string | null): string[] {
+  const out: string[] = []
+  for (const method of root.descendantsOfType('method_declaration')) {
+    const mods = method.namedChildren.find((c) => c.type === 'modifiers')
+    if (!mods || !/\bnative\b/.test(mods.text)) continue
+    const name = method.childForFieldName('name')?.text
+    const cls = nearestAncestorOfType(method, 'class_declaration')?.childForFieldName('name')?.text
+    if (!name || !cls) continue
+    out.push(jniMangle(packageName ? `${packageName}.${cls}.${name}` : `${cls}.${name}`))
+  }
+  return out
 }
 
 function extractJava(root: Node, file: ScannedFile): FileInfo {
@@ -188,7 +227,9 @@ function extractJava(root: Node, file: ScannedFile): FileInfo {
     topLevelNames,
     imports,
     functions,
-    logSites: extractJavaLogSites(root, file)
+    logSites: extractJavaLogSites(root, file),
+    nativeMethods: extractJavaNativeMethods(root, packageName),
+    jniFunctions: []
   }
 }
 
@@ -249,7 +290,9 @@ function extractKotlin(root: Node, file: ScannedFile): FileInfo {
     topLevelNames,
     imports,
     functions,
-    logSites: extractKotlinLogSites(root, file)
+    logSites: extractKotlinLogSites(root, file),
+    nativeMethods: [],
+    jniFunctions: []
   }
 }
 

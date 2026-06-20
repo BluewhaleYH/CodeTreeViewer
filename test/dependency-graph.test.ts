@@ -324,6 +324,35 @@ describe('C/C++ include 의존성 (M13)', () => {
   })
 })
 
+describe('JNI 경계 매핑 (M14_1)', () => {
+  it('Java native 메서드와 C/C++ Java_ 함수를 jni-boundary 엣지로 잇는다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-jni-'))
+    await write(
+      'java/com/example/Native.java',
+      'package com.example;\nclass Native {\n  public native int compute(int x);\n}'
+    )
+    await write(
+      'jni/native-lib.c',
+      '#include <jni.h>\njint Java_com_example_Native_compute(JNIEnv* env, jobject o, jint x) { return x; }'
+    )
+
+    const { graph, summary } = await runAnalysis(root, parser)
+    const jni = graph.edges.find((e) => e.type === 'jni-boundary')
+    expect(jni?.from).toBe(fileNodeId('java/com/example/Native.java'))
+    expect(jni?.to).toBe(fileNodeId('jni/native-lib.c'))
+    expect(summary.jniEdgeCount).toBe(1)
+  })
+
+  it('일반(non-native) 메서드는 경계를 만들지 않는다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-jni-'))
+    await write('a/A.java', 'package a;\nclass A {\n  int f(int x){ return x; }\n}')
+    await write('b/lib.c', 'int helper(int x){ return x; }')
+
+    const { graph } = await runAnalysis(root, parser)
+    expect(graph.edges.some((e) => e.type === 'jni-boundary')).toBe(false)
+  })
+})
+
 describe('증분 재분석 (M12_3)', () => {
   it('변경 파일만 재파싱해 그래프(엣지)를 갱신한다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-inc-'))
