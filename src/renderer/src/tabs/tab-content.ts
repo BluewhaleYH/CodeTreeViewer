@@ -377,7 +377,12 @@ function renderStatsPanel(tab: TabState): HTMLElement {
 
   const stat1 = document.createElement('div')
   stat1.className = 'stats-panel__line'
-  stat1.textContent = `파일 ${summary.fileCount} · Java ${summary.byLanguage.java} · Kotlin ${summary.byLanguage.kotlin}`
+  const LANG_LABEL: Record<string, string> = { java: 'Java', kotlin: 'Kotlin', c: 'C', cpp: 'C++' }
+  const langs = Object.entries(summary.byLanguage)
+    .filter(([, n]) => (n ?? 0) > 0)
+    .map(([lang, n]) => `${LANG_LABEL[lang] ?? lang} ${n}`)
+    .join(' · ')
+  stat1.textContent = `파일 ${summary.fileCount}${langs ? ` · ${langs}` : ''}`
 
   const fileNodeCount = summary.nodeCount - summary.functionNodeCount - summary.externalNodeCount
   const stat2 = document.createElement('div')

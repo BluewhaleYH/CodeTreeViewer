@@ -49,7 +49,18 @@ export const DEFAULT_EXCLUDED_DIRS = [
 
 const LANGUAGE_BY_EXT: Record<string, SourceLanguage> = {
   '.java': 'java',
-  '.kt': 'kotlin'
+  '.kt': 'kotlin',
+  // C / C++ (2차, M13). 헤더(.h 등)는 상위 문법(cpp)으로 파싱 — include 추출은 문법 무관.
+  '.c': 'c',
+  '.h': 'cpp',
+  '.cpp': 'cpp',
+  '.cc': 'cpp',
+  '.cxx': 'cpp',
+  '.c++': 'cpp',
+  '.hpp': 'cpp',
+  '.hh': 'cpp',
+  '.hxx': 'cpp',
+  '.h++': 'cpp'
 }
 
 /** 프로젝트 루트를 재귀 스캔해 대상(.java/.kt) 파일을 수집한다. */

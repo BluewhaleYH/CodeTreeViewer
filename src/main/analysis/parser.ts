@@ -12,8 +12,8 @@ import type { ScannedFile, SourceLanguage } from './scanner'
 export interface ParserConfig {
   /** web-tree-sitter 런타임 wasm(tree-sitter.wasm) 경로. 미지정 시 기본 해석. */
   runtimeWasmPath?: string
-  /** 언어별 문법 wasm 경로. */
-  grammarWasmPaths: Record<SourceLanguage, string>
+  /** 언어별 문법 wasm 경로(로드할 언어만). */
+  grammarWasmPaths: Partial<Record<SourceLanguage, string>>
 }
 
 export interface ParsedFile {

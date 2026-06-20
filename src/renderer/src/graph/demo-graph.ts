@@ -43,7 +43,10 @@ export function buildDemoGraph(): CodeGraph {
     fileNode('core/src/main/kotlin/ApiClient.kt', 'core', 'kotlin'),
     fileNode('core/src/main/kotlin/Models.kt', 'core', 'kotlin'),
     fileNode('util/src/main/java/Logger.java', 'util', 'java'),
-    fileNode('util/src/main/java/Strings.java', 'util', 'java')
+    fileNode('util/src/main/java/Strings.java', 'util', 'java'),
+    // C/C++ 네이티브(M13)
+    fileNode('native/jni/native-lib.cpp', 'native', 'cpp'),
+    fileNode('native/jni/engine.h', 'native', 'cpp')
   ]
   const ext: GraphNode = {
     id: externalNodeId('retrofit2.Retrofit'),
@@ -98,6 +101,8 @@ export function buildDemoGraph(): CodeGraph {
     dep('core/src/main/kotlin/Repository.kt', fileNodeId('core/src/main/kotlin/ApiClient.kt')),
     dep('core/src/main/kotlin/Repository.kt', fileNodeId('core/src/main/kotlin/Models.kt')),
     dep('core/src/main/kotlin/ApiClient.kt', externalNodeId('retrofit2.Retrofit')),
+    // C/C++ include 의존성(M13)
+    dep('native/jni/native-lib.cpp', fileNodeId('native/jni/engine.h')),
     // 호출: login·onRetry → load, load → get, save → get
     call(vm, 'login', repo, 'load'),
     call(vm, 'onRetry', repo, 'load'),
@@ -110,16 +115,16 @@ export function buildDemoGraph(): CodeGraph {
 
 export const DEMO_SUMMARY: AnalysisSummary = {
   root: '/home/dev/AndroidProject',
-  fileCount: 7,
-  parsedCount: 7,
+  fileCount: 9,
+  parsedCount: 9,
   failureCount: 0,
-  byLanguage: { java: 2, kotlin: 5 },
+  byLanguage: { java: 2, kotlin: 5, cpp: 2 },
   skippedDirCount: 0,
-  nodeCount: 13,
+  nodeCount: 15,
   functionNodeCount: 5,
   externalNodeCount: 1,
-  domainCount: 3,
-  edgeCount: 7,
+  domainCount: 4,
+  edgeCount: 8,
   callEdgeCount: 4,
   failures: []
 }

@@ -109,11 +109,26 @@ export function buildFileGraph(
     }
   }
 
-  // 3) import 해석 → 내부 엣지 또는 외부 노드.
+  // 2-3) C/C++ #include 경로 해석용 인덱스(전체 파일 경로 + basename별). (M13)
+  const projectPaths = new Set(files.map((f) => f.relativePath))
+  const basenameIndex = new Map<string, string[]>()
+  for (const f of files) {
+    const base = f.relativePath.split('/').pop() ?? f.relativePath
+    pushTo(basenameIndex, base, f.relativePath)
+  }
+
+  // 3) import / include 해석 → 내부 엣지 또는 외부 노드.
   for (const info of infos) {
     const fromId = fileNodeId(info.file.relativePath)
     for (const imp of info.imports) {
-      const resolved = resolveImport(imp, typeIndex, packageIndex)
+      let resolved: string[]
+      if (imp.kind === 'include-system') {
+        resolved = [] // 시스템 헤더는 항상 외부. (D9)
+      } else if (imp.kind === 'include-local') {
+        resolved = resolveInclude(imp.target, info.file.relativePath, projectPaths, basenameIndex)
+      } else {
+        resolved = resolveImport(imp, typeIndex, packageIndex)
+      }
       if (resolved.length > 0) {
         for (const targetRel of resolved) {
           if (targetRel !== info.file.relativePath) {
@@ -141,6 +156,41 @@ export function buildFileGraph(
   }
 
   return builder.build()
+}
+
+/** POSIX 경로 정규화('.'/'..' 해소). 상대 경로 문자열 전용. */
+function normalizePosix(p: string): string {
+  const out: string[] = []
+  for (const seg of p.split('/')) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') out.pop()
+    else out.push(seg)
+  }
+  return out.join('/')
+}
+
+/**
+ * C/C++ 로컬 include("...") 해석(보수적). (02 §3, M13)
+ * 1) 포함 파일 디렉터리 기준 상대 경로가 스캔된 파일이면 그 파일.
+ * 2) 아니면 basename이 같고 경로가 정확히 일치/접미 일치하는 파일이 **유일**할 때만.
+ * 그 외(0개/다수)는 빈 배열 → 외부 노드.
+ */
+function resolveInclude(
+  includePath: string,
+  fromRel: string,
+  projectPaths: Set<string>,
+  basenameIndex: Map<string, string[]>
+): string[] {
+  const slash = fromRel.lastIndexOf('/')
+  const fromDir = slash >= 0 ? fromRel.slice(0, slash) : ''
+  const relCandidate = normalizePosix(fromDir ? `${fromDir}/${includePath}` : includePath)
+  if (projectPaths.has(relCandidate)) return [relCandidate]
+
+  const base = includePath.split('/').pop() ?? includePath
+  const matches = (basenameIndex.get(base) ?? []).filter(
+    (p) => p === includePath || p.endsWith(`/${includePath}`)
+  )
+  return matches.length === 1 ? matches : []
 }
 
 function pushTo(map: Map<string, string[]>, key: string, value: string): void {
