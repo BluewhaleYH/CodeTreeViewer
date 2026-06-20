@@ -120,7 +120,7 @@
 
 ## M13 — C/C++ 네이티브 분석 (2차)
 
-- [ ] tree-sitter c/cpp 통합 + include 기반 파일 의존성 (`02` §2, §3)
+- [x] tree-sitter c/cpp 통합 + include 기반 파일 의존성 (`02` §2, §3)
 
 ---
 
