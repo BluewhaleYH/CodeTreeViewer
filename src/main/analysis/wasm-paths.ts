@@ -23,17 +23,22 @@ export function resolveParserConfig(options: WasmResolveOptions = {}): ParserCon
       runtimeWasmPath: join(dir, 'tree-sitter.wasm'),
       grammarWasmPaths: {
         java: join(dir, 'tree-sitter-java.wasm'),
-        kotlin: join(dir, 'tree-sitter-kotlin.wasm')
+        kotlin: join(dir, 'tree-sitter-kotlin.wasm'),
+        c: join(dir, 'tree-sitter-c.wasm'),
+        cpp: join(dir, 'tree-sitter-cpp.wasm')
       }
     }
   }
 
   const nodeModulesDir = options.nodeModulesDir ?? join(process.cwd(), 'node_modules')
+  const grammarDir = join(nodeModulesDir, 'tree-sitter-wasms', 'out')
   return {
     runtimeWasmPath: join(nodeModulesDir, 'web-tree-sitter', 'tree-sitter.wasm'),
     grammarWasmPaths: {
-      java: join(nodeModulesDir, 'tree-sitter-wasms', 'out', 'tree-sitter-java.wasm'),
-      kotlin: join(nodeModulesDir, 'tree-sitter-wasms', 'out', 'tree-sitter-kotlin.wasm')
+      java: join(grammarDir, 'tree-sitter-java.wasm'),
+      kotlin: join(grammarDir, 'tree-sitter-kotlin.wasm'),
+      c: join(grammarDir, 'tree-sitter-c.wasm'),
+      cpp: join(grammarDir, 'tree-sitter-cpp.wasm')
     }
   }
 }

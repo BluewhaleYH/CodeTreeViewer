@@ -6,7 +6,7 @@
 import type { CodeGraph } from './graph'
 import type { LogSite } from './log'
 
-export type SourceLanguage = 'java' | 'kotlin'
+export type SourceLanguage = 'java' | 'kotlin' | 'c' | 'cpp'
 
 export interface AnalysisProgress {
   phase: 'scanning' | 'parsing' | 'done'
@@ -24,7 +24,8 @@ export interface AnalysisSummary {
   fileCount: number
   parsedCount: number
   failureCount: number
-  byLanguage: Record<SourceLanguage, number>
+  /** 언어별 파일 수(존재하는 언어만). */
+  byLanguage: Partial<Record<SourceLanguage, number>>
   skippedDirCount: number
   /** 그래프 노드 수(파일 + 함수 + 외부 노드). (02 §4) */
   nodeCount: number

@@ -273,6 +273,57 @@ describe('로그 호출 추출 (M11_4)', () => {
   })
 })
 
+describe('C/C++ include 의존성 (M13)', () => {
+  it('로컬 include("...")를 프로젝트 파일 엣지로 만든다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-c-'))
+    await write('src/main.c', '#include "util/log.h"\nint main(){ return 0; }')
+    await write('src/util/log.h', '#ifndef LOG_H\n#define LOG_H\n#endif')
+
+    const { graph, summary } = await runAnalysis(root, parser)
+    expect(summary.byLanguage.c).toBe(1) // main.c
+    const edge = graph.edges.find((e) => e.type === 'file-dependency')
+    expect(edge?.from).toBe(fileNodeId('src/main.c'))
+    expect(edge?.to).toBe(fileNodeId('src/util/log.h'))
+  })
+
+  it('상대 경로(../)도 해석한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-c-'))
+    await write('a/foo.c', '#include "../b/bar.h"\n')
+    await write('b/bar.h', '')
+
+    const { graph } = await runAnalysis(root, parser)
+    const edge = graph.edges.find((e) => e.type === 'file-dependency')
+    expect(edge?.to).toBe(fileNodeId('b/bar.h'))
+  })
+
+  it('시스템 include(<...>)는 외부 노드로 분리한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-c-'))
+    await write('a.c', '#include <stdio.h>\n')
+
+    const { graph } = await runAnalysis(root, parser)
+    const ext = graph.nodes.find((n) => n.external)
+    expect(ext?.name).toBe('stdio.h')
+  })
+
+  it('미해결 로컬 include는 외부 노드로 둔다(오탐 방지)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-c-'))
+    await write('a.c', '#include "nowhere.h"\n')
+
+    const { graph } = await runAnalysis(root, parser)
+    expect(graph.nodes.find((n) => n.external)?.name).toBe('nowhere.h')
+  })
+
+  it('C++ 파일과 헤더도 처리한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-cpp-'))
+    await write('app/Main.cpp', '#include "core/Engine.hpp"\n')
+    await write('app/core/Engine.hpp', 'class Engine {};')
+
+    const { graph, summary } = await runAnalysis(root, parser)
+    expect(summary.byLanguage.cpp).toBeGreaterThanOrEqual(1)
+    expect(graph.edges.some((e) => e.to === fileNodeId('app/core/Engine.hpp'))).toBe(true)
+  })
+})
+
 describe('증분 재분석 (M12_3)', () => {
   it('변경 파일만 재파싱해 그래프(엣지)를 갱신한다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-inc-'))

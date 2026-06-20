@@ -78,7 +78,7 @@ async function analyzeScanned(
   const files = scanResult.files
   const total = files.length
 
-  const byLanguage: Record<SourceLanguage, number> = { java: 0, kotlin: 0 }
+  const byLanguage: Partial<Record<SourceLanguage, number>> = {}
   const failures: AnalysisSummary['failures'] = []
   const infos: FileInfo[] = []
   let parsedCount = 0
@@ -104,7 +104,7 @@ async function analyzeScanned(
         })
       }
       parsedCount += 1
-      byLanguage[file.language] += 1
+      byLanguage[file.language] = (byLanguage[file.language] ?? 0) + 1
     } catch (error) {
       failures.push({
         relativePath: file.relativePath,

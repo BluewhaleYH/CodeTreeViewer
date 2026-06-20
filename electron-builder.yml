@@ -14,6 +14,10 @@ extraResources:
     to: wasm/tree-sitter-java.wasm
   - from: node_modules/tree-sitter-wasms/out/tree-sitter-kotlin.wasm
     to: wasm/tree-sitter-kotlin.wasm
+  - from: node_modules/tree-sitter-wasms/out/tree-sitter-c.wasm
+    to: wasm/tree-sitter-c.wasm
+  - from: node_modules/tree-sitter-wasms/out/tree-sitter-cpp.wasm
+    to: wasm/tree-sitter-cpp.wasm
 # 자동 업데이트 피드: GitHub Releases. (DEPLOY.md §4)
 publish:
   provider: github

@@ -8,8 +8,11 @@ import { buildLogPattern, type LogSite, type LogTemplateSeg } from '../../shared
  */
 
 export interface ImportRef {
-  /** 'type': 특정 타입 FQN, 'package': 와일드카드(패키지 전체). */
-  kind: 'type' | 'package'
+  /**
+   * 'type': 특정 타입 FQN, 'package': 와일드카드(패키지 전체). (Java/Kotlin)
+   * 'include-local': #include "..."(경로 해석), 'include-system': #include <...>(외부). (C/C++, M13)
+   */
+  kind: 'type' | 'package' | 'include-local' | 'include-system'
   target: string
   line: number
 }
@@ -85,9 +88,35 @@ function kotlinCalleeName(call: Node): string | null {
 }
 
 export function extractFileInfo(tree: Parser.Tree, file: ScannedFile): FileInfo {
-  return file.language === 'java'
-    ? extractJava(tree.rootNode, file)
-    : extractKotlin(tree.rootNode, file)
+  switch (file.language) {
+    case 'java':
+      return extractJava(tree.rootNode, file)
+    case 'kotlin':
+      return extractKotlin(tree.rootNode, file)
+    default:
+      return extractCFamily(tree.rootNode, file) // c / cpp
+  }
+}
+
+/**
+ * C/C++: #include 지시문을 파일 의존성 import로 추출한다. (02 §2, §3, M13)
+ * `#include "..."` → include-local(경로 해석), `#include <...>` → include-system(외부).
+ * 함수/심볼 추출은 본 단계 범위 밖(파일 의존성만).
+ */
+function extractCFamily(root: Node, file: ScannedFile): FileInfo {
+  const imports: ImportRef[] = []
+  for (const inc of root.descendantsOfType('preproc_include')) {
+    const path = inc.childForFieldName('path')
+    if (!path) continue
+    const line = inc.startPosition.row + 1
+    if (path.type === 'string_literal') {
+      imports.push({ kind: 'include-local', target: stripQuotes(path.text), line })
+    } else if (path.type === 'system_lib_string') {
+      // <stdio.h> → stdio.h
+      imports.push({ kind: 'include-system', target: path.text.replace(/^<|>$/g, ''), line })
+    }
+  }
+  return { file, packageName: null, topLevelNames: [], imports, functions: [], logSites: [] }
 }
 
 function extractJava(root: Node, file: ScannedFile): FileInfo {
