@@ -155,6 +155,29 @@ export function buildFileGraph(
     }
   }
 
+  // 4) JNI 경계: Java native 메서드(기대 맹글링명) ↔ C/C++ Java_ 함수 매칭 → jni-boundary 엣지. (M14_1)
+  //    부모=Java 파일(native 선언), 자식=C/C++ 파일(구현).
+  const nativeByMangled = new Map<string, string[]>()
+  for (const info of infos) {
+    for (const m of info.nativeMethods) pushTo(nativeByMangled, m, info.file.relativePath)
+  }
+  if (nativeByMangled.size > 0) {
+    for (const info of infos) {
+      if (info.jniFunctions.length === 0) continue
+      const cId = fileNodeId(info.file.relativePath)
+      for (const jf of info.jniFunctions) {
+        for (const [mangled, javaFiles] of nativeByMangled) {
+          // 정확 일치 또는 오버로드 시그니처 접미(__...) 일치.
+          if (jf === mangled || jf.startsWith(`${mangled}__`)) {
+            for (const javaFile of javaFiles) {
+              builder.addEdge('jni-boundary', fileNodeId(javaFile), cId, null)
+            }
+          }
+        }
+      }
+    }
+  }
+
   return builder.build()
 }
 

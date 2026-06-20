@@ -7,8 +7,8 @@ import type { SourceLanguage } from './analysis'
 
 export type NodeKind = 'file' | 'function'
 
-/** MVP: file-dependency. function-call은 2차(M10). (02 §4.2) */
-export type EdgeType = 'file-dependency' | 'function-call'
+/** MVP: file-dependency. function-call은 2차(M10). jni-boundary는 추후(M14). (02 §4.2) */
+export type EdgeType = 'file-dependency' | 'function-call' | 'jni-boundary'
 
 export interface GraphNode {
   id: string

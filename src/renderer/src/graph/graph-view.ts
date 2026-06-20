@@ -75,6 +75,16 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     // 호출(function-call) 엣지: 파일 의존성과 구분되는 색/점선. (M10_2)
     selector: 'edge[type="function-call"]',
     style: { 'line-color': '#6b8cce', 'target-arrow-color': '#6b8cce', 'line-style': 'dashed' }
+  },
+  {
+    // JNI 경계 엣지: 보라색 굵은 점선(Java ↔ 네이티브). (M14_1)
+    selector: 'edge[type="jni-boundary"]',
+    style: {
+      'line-color': '#b98cff',
+      'target-arrow-color': '#b98cff',
+      'line-style': 'dashed',
+      width: 2
+    }
   }
 ]
 

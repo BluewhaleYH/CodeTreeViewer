@@ -43,6 +43,7 @@ function graphSummaryFields(
   | 'domainCount'
   | 'edgeCount'
   | 'callEdgeCount'
+  | 'jniEdgeCount'
 > {
   return {
     nodeCount: graph.nodes.length,
@@ -50,7 +51,8 @@ function graphSummaryFields(
     externalNodeCount: graph.nodes.filter((n) => n.external).length,
     domainCount: domains.size,
     edgeCount: graph.edges.filter((e) => e.type === 'file-dependency').length,
-    callEdgeCount: graph.edges.filter((e) => e.type === 'function-call').length
+    callEdgeCount: graph.edges.filter((e) => e.type === 'function-call').length,
+    jniEdgeCount: graph.edges.filter((e) => e.type === 'jni-boundary').length
   }
 }
 
@@ -100,7 +102,9 @@ async function analyzeScanned(
           topLevelNames: [],
           imports: [],
           functions: [],
-          logSites: []
+          logSites: [],
+          nativeMethods: [],
+          jniFunctions: []
         })
       }
       parsedCount += 1
@@ -159,7 +163,9 @@ export async function reanalyzeFile(
       topLevelNames: [],
       imports: [],
       functions: [],
-      logSites: []
+      logSites: [],
+      nativeMethods: [],
+      jniFunctions: []
     }
   }
 

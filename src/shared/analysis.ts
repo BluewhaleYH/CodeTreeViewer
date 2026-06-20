@@ -39,6 +39,8 @@ export interface AnalysisSummary {
   edgeCount: number
   /** 함수 호출(function-call) 엣지 수. (02 §6, M10_1) */
   callEdgeCount: number
+  /** JNI 경계(jni-boundary) 엣지 수. (M14_1) */
+  jniEdgeCount?: number
   failures: AnalysisFailure[]
 }
 

@@ -46,7 +46,9 @@ export function buildDemoGraph(): CodeGraph {
     fileNode('util/src/main/java/Strings.java', 'util', 'java'),
     // C/C++ 네이티브(M13)
     fileNode('native/jni/native-lib.cpp', 'native', 'cpp'),
-    fileNode('native/jni/engine.h', 'native', 'cpp')
+    fileNode('native/jni/engine.h', 'native', 'cpp'),
+    // JNI 경계 데모(M14_1): native 메서드를 가진 Java 브리지
+    fileNode('app/src/main/java/NativeBridge.java', 'app', 'java')
   ]
   const ext: GraphNode = {
     id: externalNodeId('retrofit2.Retrofit'),
@@ -103,6 +105,14 @@ export function buildDemoGraph(): CodeGraph {
     dep('core/src/main/kotlin/ApiClient.kt', externalNodeId('retrofit2.Retrofit')),
     // C/C++ include 의존성(M13)
     dep('native/jni/native-lib.cpp', fileNodeId('native/jni/engine.h')),
+    // JNI 경계(M14_1): Java native 메서드 → C++ 구현
+    {
+      id: 'jni-boundary:bridge->lib',
+      type: 'jni-boundary' as const,
+      from: fileNodeId('app/src/main/java/NativeBridge.java'),
+      to: fileNodeId('native/jni/native-lib.cpp'),
+      line: null
+    },
     // 호출: login·onRetry → load, load → get, save → get
     call(vm, 'login', repo, 'load'),
     call(vm, 'onRetry', repo, 'load'),
@@ -115,16 +125,17 @@ export function buildDemoGraph(): CodeGraph {
 
 export const DEMO_SUMMARY: AnalysisSummary = {
   root: '/home/dev/AndroidProject',
-  fileCount: 9,
-  parsedCount: 9,
+  fileCount: 10,
+  parsedCount: 10,
   failureCount: 0,
-  byLanguage: { java: 2, kotlin: 5, cpp: 2 },
+  byLanguage: { java: 3, kotlin: 5, cpp: 2 },
   skippedDirCount: 0,
-  nodeCount: 15,
+  nodeCount: 16,
   functionNodeCount: 5,
   externalNodeCount: 1,
   domainCount: 4,
   edgeCount: 8,
+  jniEdgeCount: 1,
   callEdgeCount: 4,
   failures: []
 }
