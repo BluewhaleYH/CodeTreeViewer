@@ -6,7 +6,7 @@ import cytoscape, {
 } from 'cytoscape'
 import type { CodeGraph } from '../../../shared/graph'
 import type { TabState, ViewMode } from '../tabs/tab-store'
-import { backtraceElements, toCytoscapeElements } from './to-cytoscape'
+import { backtraceElements, compareElements, toCytoscapeElements } from './to-cytoscape'
 import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
 import { DEFAULT_MAX_INITIAL_NODES, selectInitialView } from './initial-view'
 import { buildNeighborAdjacency, expandableNodeIds } from './expand'
@@ -59,6 +59,28 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     // 재분석 영향(추가/변경) 노드 강조. (06 §5, M12_4)
     selector: 'node.impacted',
     style: { 'border-width': 3, 'border-color': '#5fd38a', 'border-style': 'double' }
+  },
+  // 전/후 비교 모드 상태 색. (03, 06 §5, M14_3)
+  {
+    selector: 'node[status="added"]',
+    style: { 'background-color': '#5fd38a', 'border-width': 2, 'border-color': '#5fd38a' }
+  },
+  {
+    selector: 'node[status="removed"]',
+    style: {
+      'background-color': '#e06c75',
+      'border-width': 2,
+      'border-color': '#e06c75',
+      opacity: 0.55
+    }
+  },
+  {
+    selector: 'edge[status="added"]',
+    style: { 'line-color': '#5fd38a', 'target-arrow-color': '#5fd38a' }
+  },
+  {
+    selector: 'edge[status="removed"]',
+    style: { 'line-color': '#e06c75', 'target-arrow-color': '#e06c75', 'line-style': 'dotted' }
   },
   {
     selector: 'edge',
@@ -152,6 +174,14 @@ export class GraphView {
       this.clear()
       return
     }
+    // 전/후 비교 모드: 스냅샷 vs 현재 합집합. (03, 06 §5, M14_3)
+    if (tab.view.compare && tab.snapshot) {
+      const key = `${tab.id}:cmp`
+      if (this.currentKey === key && this.cy && this.fullGraph === graph) return
+      this.currentKey = key
+      this.drawCompare(tab.snapshot, graph)
+      return
+    }
     // 역추적 모드: 선택 함수의 호출처 체인을 표시한다. (M10_2)
     if (tab.view.backtrace) {
       const key = `${tab.id}:bt:${tab.view.backtrace}`
@@ -168,6 +198,26 @@ export class GraphView {
     }
     this.currentKey = key
     this.draw(graph, tab.view.mode, tab.view.selectedNodeId)
+  }
+
+  /** 전/후 비교 그래프를 그린다(합집합 + 상태 색). (03, 06 §5, M14_3) */
+  private drawCompare(before: CodeGraph, after: CodeGraph): void {
+    this.destroyCy()
+    this.host.style.display = 'block'
+    this.backtraceId = null
+    this.impactKey = null
+    this.fullGraph = after
+    this.domainColors = assignDomainColors(after)
+    const cy = cytoscape({
+      container: this.host,
+      elements: compareElements(before, after, this.domainColors),
+      style: GRAPH_STYLE,
+      layout: layoutFor('graph'),
+      wheelSensitivity: 0.2,
+      minZoom: 0.05,
+      maxZoom: 4
+    })
+    this.cy = cy
   }
 
   /**

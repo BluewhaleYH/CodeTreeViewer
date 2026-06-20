@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { diffGraphs } from '../src/renderer/src/graph/graph-diff'
+import { diffGraphs, compareStatuses } from '../src/renderer/src/graph/graph-diff'
 import type { CodeGraph, GraphEdge, GraphNode } from '../src/shared/graph'
 
 function node(id: string): GraphNode {
@@ -44,5 +44,20 @@ describe('diffGraphs — 영향 범위 (M12_4)', () => {
       addedEdges: 0,
       removedEdges: 0
     })
+  })
+})
+
+describe('compareStatuses — 전/후 비교 (M14_3)', () => {
+  it('합집합 노드에 added/removed/common 상태를 매긴다', () => {
+    const before: CodeGraph = { nodes: [node('a'), node('b')], edges: [edge('e1', 'a', 'b')] }
+    const after: CodeGraph = { nodes: [node('a'), node('c')], edges: [edge('e2', 'a', 'c')] }
+    const { nodes, edges } = compareStatuses(before, after)
+    const byId = new Map(nodes.map((n) => [n.node.id, n.status]))
+    expect(byId.get('a')).toBe('common')
+    expect(byId.get('c')).toBe('added')
+    expect(byId.get('b')).toBe('removed')
+    const eById = new Map(edges.map((e) => [e.edge.id, e.status]))
+    expect(eById.get('e2')).toBe('added')
+    expect(eById.get('e1')).toBe('removed')
   })
 })

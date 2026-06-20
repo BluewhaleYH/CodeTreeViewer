@@ -20,6 +20,8 @@ export interface TabViewState {
    * 전환 탐색 상태이므로 세션에 영속하지 않는다.
    */
   backtrace: string | null
+  /** 전/후 비교 모드 활성 여부(스냅샷 vs 현재). 전환 상태(미영속). (03, 06 §5, M14_3) */
+  compare: boolean
 }
 
 export type AnalysisStatus = 'idle' | 'running' | 'done' | 'error'
@@ -58,6 +60,8 @@ export interface TabState {
   codeView: TabCodeView | null
   /** 직전 재분석 영향 범위. null이면 표시 안 함. (06 §5, M12_4) */
   impact: TabImpact | null
+  /** 전/후 비교용 그래프 스냅샷. null이면 미캡처. (03, 06 §5, M14_3) */
+  snapshot: CodeGraph | null
 }
 
 /** 재분석 영향 범위(추가/변경 노드 강조 + 요약). (06 §5, M12_4) */
@@ -97,11 +101,12 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     id: nextId(),
     projectPath,
     projectName,
-    view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null, backtrace: null },
+    view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null, backtrace: null, compare: false },
     analysis: createAnalysisState(),
     log: null,
     codeView: null,
-    impact: null
+    impact: null,
+    snapshot: null
   }
 }
 
@@ -222,6 +227,24 @@ export class TabStore {
     const tab = this.tabs.find((t) => t.id === id)
     if (!tab) return
     tab.codeView = codeView
+    this.emit()
+  }
+
+  /** 현재 그래프를 비교용 스냅샷으로 캡처한다. (03, 06 §5, M14_3) */
+  setSnapshot(id: string, snapshot: CodeGraph | null): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab) return
+    tab.snapshot = snapshot
+    if (snapshot === null) tab.view = { ...tab.view, compare: false }
+    this.emit()
+  }
+
+  /** 전/후 비교 모드를 토글한다. 스냅샷이 없으면 무시. (M14_3) */
+  setCompare(id: string, compare: boolean): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || tab.view.compare === compare) return
+    if (compare && !tab.snapshot) return
+    tab.view = { ...tab.view, compare }
     this.emit()
   }
 
@@ -346,7 +369,12 @@ export class TabStore {
     this.tabs = persisted.map((p) => {
       const tab = createTab(p.projectPath, p.projectName)
       // 역추적은 영속하지 않으므로 항상 null로 복원한다. (M10_2)
-      tab.view = { mode: p.view.mode, selectedNodeId: p.view.selectedNodeId, backtrace: null }
+      tab.view = {
+        mode: p.view.mode,
+        selectedNodeId: p.view.selectedNodeId,
+        backtrace: null,
+        compare: false
+      }
       return tab
     })
     const active = this.tabs[activeIndex] ?? this.tabs[0] ?? null

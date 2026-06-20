@@ -169,6 +169,18 @@ if (root) {
         clearImpact: () => {
           const id = store.getActiveId()
           if (id) store.setImpact(id, null)
+        },
+        captureSnapshot: () => {
+          const a = store.getActive()
+          if (a?.analysis.graph) store.setSnapshot(a.id, a.analysis.graph)
+        },
+        setCompare: (on) => {
+          const id = store.getActiveId()
+          if (id) store.setCompare(id, on)
+        },
+        clearSnapshot: () => {
+          const id = store.getActiveId()
+          if (id) store.setSnapshot(id, null)
         }
       })
       const active = store.getActive()
@@ -308,6 +320,18 @@ if (root) {
           highlight: [fileNodeId('core/src/main/kotlin/Repository.kt')],
           summary: { addedNodes: 1, removedNodes: 0, addedEdges: 2, removedEdges: 0 }
         })
+        // 전/후 비교 데모: 네이티브 없는 스냅샷 → native 노드가 '추가'로 보임. (M14_3)
+        const demoGraph = buildDemoGraph()
+        store.setSnapshot(demo.id, {
+          nodes: demoGraph.nodes.filter(
+            (n) => !n.id.includes('native/') && !n.id.includes('NativeBridge')
+          ),
+          edges: demoGraph.edges.filter(
+            (e) =>
+              e.type !== 'jni-boundary' && !e.from.includes('native/') && !e.to.includes('native/')
+          )
+        })
+        store.setCompare(demo.id, true)
         // 로그 분석 데모: 좌측 로그 패널 + 로그→코드 역추적 후보. (M11_1, M11_4)
         store.openLog(demo.id, {
           path: '/logs/app.logcat',
