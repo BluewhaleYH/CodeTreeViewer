@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { buildLogPattern, type LogSite } from '../src/shared/log'
-import { matchLogSites, relatedLogLines } from '../src/renderer/src/log/log-match'
+import {
+  matchLogSites,
+  relatedLogLines,
+  confidenceOf,
+  confidenceLabel
+} from '../src/renderer/src/log/log-match'
 import { parseAll, parseLogcatLine } from '../src/renderer/src/log/logcat-parse'
 
 describe('buildLogPattern (M11_4)', () => {
@@ -70,6 +75,42 @@ describe('matchLogSites (M11_4)', () => {
   it('일치 후보가 없으면 빈 배열', () => {
     const raw = '06-19 14:22:01.118  1234  1300 D MainActivity: onCreate()'
     expect(matchLogSites(raw, parseLogcatLine(raw), sites)).toEqual([])
+  })
+})
+
+describe('confidenceOf — 매칭 신뢰도 (M14_2)', () => {
+  function site(pattern: string, tag: string | null): LogSite {
+    return { file: 'f', line: 1, level: 'E', tag, format: '', pattern }
+  }
+
+  it('정적 텍스트가 길수록 신뢰도가 높다', () => {
+    const longStatic = confidenceOf(site('^this is a fairly long static message$', 'T'), 'T')
+    const shortStatic = confidenceOf(site('^short .*?$', 'T'), 'T')
+    expect(longStatic).toBeGreaterThan(shortStatic)
+  })
+
+  it('가변부(와일드카드)가 있으면 같은 정적 길이라도 약간 낮다', () => {
+    const noWild = confidenceOf(site('^abcdefghij$', 'T'), 'T')
+    const withWild = confidenceOf(site('^abcdefghij.*?$', 'T'), 'T')
+    expect(withWild).toBeLessThan(noWild)
+  })
+
+  it('소스 태그가 명시되면(미상보다) 신뢰도가 높다', () => {
+    const tagged = confidenceOf(site('^load failed: .*?$', 'Repo'), 'Repo')
+    const untagged = confidenceOf(site('^load failed: .*?$', null), 'Repo')
+    expect(tagged).toBeGreaterThan(untagged)
+  })
+
+  it('신뢰도는 0~1로 클램프된다', () => {
+    const s = confidenceOf(site('^' + 'x'.repeat(200) + '$', 'T'), 'T')
+    expect(s).toBeLessThanOrEqual(1)
+    expect(s).toBeGreaterThanOrEqual(0)
+  })
+
+  it('라벨은 점수 구간에 따른다', () => {
+    expect(confidenceLabel(0.9)).toBe('높음')
+    expect(confidenceLabel(0.5)).toBe('중간')
+    expect(confidenceLabel(0.2)).toBe('낮음')
   })
 })
 
