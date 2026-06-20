@@ -29,6 +29,7 @@ if (root) {
         </div>
         <div class="ws-code" id="ws-code" hidden></div>
       </main>
+      <button class="theme-toggle" id="theme-toggle" title="다크/라이트 전환"></button>
     </div>
   `
 
@@ -146,6 +147,22 @@ if (root) {
     }
 
     const isCapture = window.codetree.captureMode
+
+    // 테마(다크/라이트) 전환. localStorage에 영속(렌더러 전용 UI 선호). (03 §9, M14_4)
+    const themeToggle = root.querySelector<HTMLButtonElement>('#theme-toggle')
+    const applyTheme = (theme: 'dark' | 'light'): void => {
+      document.documentElement.dataset.theme = theme
+      if (themeToggle) themeToggle.textContent = theme === 'dark' ? '☾' : '☀'
+      editorView.setTheme(theme)
+    }
+    let currentTheme: 'dark' | 'light' =
+      (isCapture ? 'light' : localStorage.getItem('ctv-theme')) === 'light' ? 'light' : 'dark'
+    applyTheme(currentTheme)
+    themeToggle?.addEventListener('click', () => {
+      currentTheme = currentTheme === 'dark' ? 'light' : 'dark'
+      localStorage.setItem('ctv-theme', currentTheme)
+      applyTheme(currentTheme)
+    })
 
     // 세션 저장: 탭/활성 탭이 바뀔 때만 IPC 전송(변경 감지). (01 §5, M8_3)
     let lastSerialized = ''

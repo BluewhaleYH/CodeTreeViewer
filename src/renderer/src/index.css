@@ -7,6 +7,41 @@
   --fg: #e0e0e0;
   --fg-muted: #9aa0a6;
   --accent: #4a9eff;
+  /* 그래프 위 반투명 패널/드롭다운 배경. */
+  --panel-bg: rgba(37, 37, 38, 0.92);
+}
+
+/* 라이트 모드. (03 §9, M14_4) */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --bg-elevated: #ffffff;
+  --bg-tab: #e9ebee;
+  --border: #d0d4da;
+  --fg: #1f2328;
+  --fg-muted: #6b7280;
+  --accent: #2563eb;
+  --panel-bg: rgba(255, 255, 255, 0.94);
+}
+
+/* 테마 토글 버튼(우상단 고정). (M14_4) */
+.theme-toggle {
+  position: fixed;
+  top: 6px;
+  right: 10px;
+  z-index: 50;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  filter: brightness(1.1);
 }
 
 * {
@@ -446,7 +481,7 @@ body {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(37, 37, 38, 0.85);
+  background: var(--panel-bg);
   pointer-events: auto;
   max-width: 70%;
 }
@@ -466,7 +501,7 @@ body {
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(37, 37, 38, 0.85);
+  background: var(--panel-bg);
   pointer-events: auto;
 }
 
@@ -503,7 +538,7 @@ body {
   padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(37, 37, 38, 0.95);
+  background: var(--panel-bg);
 }
 
 .search__input {
@@ -531,7 +566,7 @@ body {
   margin-top: 4px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(30, 30, 30, 0.97);
+  background: var(--panel-bg);
   max-height: 320px;
   overflow-y: auto;
   display: none;
@@ -593,7 +628,7 @@ body {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(37, 37, 38, 0.92);
+  background: var(--panel-bg);
   pointer-events: auto;
 }
 
@@ -824,7 +859,7 @@ body {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(37, 37, 38, 0.85);
+  background: var(--panel-bg);
   pointer-events: auto;
   max-height: 40%;
   overflow-y: auto;

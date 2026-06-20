@@ -97,7 +97,6 @@ export class EditorView {
       const content = this.editor.getValue()
       this.disposeEditors()
       this.diffEditor = monaco.editor.createDiffEditor(this.editorHost, {
-        theme: 'vs-dark',
         readOnly: true,
         automaticLayout: true,
         renderSideBySide: false,
@@ -116,7 +115,6 @@ export class EditorView {
       this.editor = monaco.editor.create(this.editorHost, {
         value: '',
         language: 'plaintext',
-        theme: 'vs-dark',
         readOnly: false,
         automaticLayout: true,
         minimap: { enabled: false },
@@ -178,6 +176,11 @@ export class EditorView {
     this.baseContent = this.getContent()
     this.dirty = false
     this.dirtyDot.hidden = true
+  }
+
+  /** 에디터 테마를 앱 테마와 맞춘다(전역 Monaco 테마). (03 §9, M14_4) */
+  setTheme(theme: 'dark' | 'light'): void {
+    monaco.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs')
   }
 
   /** 현재 편집 내용(편집/차이 모드 모두). (저장용) */
