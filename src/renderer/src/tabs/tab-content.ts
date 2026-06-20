@@ -3,7 +3,7 @@ import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
 import { assignDomainColors } from '../graph/domain-colors'
 import { buildCallerAdjacency } from '../graph/backtrace'
 import { parseLogcatLine } from '../log/logcat-parse'
-import { matchLogSites } from '../log/log-match'
+import { matchLogSites, confidenceOf, confidenceLabel } from '../log/log-match'
 import type { CodeGraph } from '../../../shared/graph'
 import type { LogSite } from '../../../shared/log'
 
@@ -195,7 +195,11 @@ function renderCandidatePanel(
 ): HTMLElement {
   const raw = active.log?.lines[selectedLine] ?? ''
   const fields = parseLogcatLine(raw)
+  const logTag = fields?.tag ?? null
+  // 신뢰도 계산 + 내림차순 정렬(가장 그럴듯한 후보 먼저). (04 §5.3, M14_2)
   const candidates = matchLogSites(raw, fields, active.analysis.logSites)
+    .map((site) => ({ site, score: confidenceOf(site, logTag) }))
+    .sort((a, b) => b.score - a.score)
 
   const panel = document.createElement('div')
   panel.className = 'info-panel candidate-panel'
@@ -226,17 +230,27 @@ function renderCandidatePanel(
 
   const list = document.createElement('ul')
   list.className = 'candidate-panel__list'
-  for (const site of candidates.slice(0, 20)) {
+  for (const { site, score } of candidates.slice(0, 20)) {
     const li = document.createElement('li')
     const btn = document.createElement('button')
     btn.className = 'candidate-panel__item'
+
+    const head = document.createElement('span')
+    head.className = 'candidate-panel__head'
     const loc = document.createElement('span')
     loc.className = 'candidate-panel__loc'
     loc.textContent = `${site.file}:${site.line}`
+    // 신뢰도 배지(높음/중간/낮음 + %). (04 §5.3, M14_2)
+    const conf = document.createElement('span')
+    const label = confidenceLabel(score)
+    conf.className = `candidate-panel__conf conf-${label === '높음' ? 'high' : label === '중간' ? 'mid' : 'low'}`
+    conf.textContent = `${label} ${Math.round(score * 100)}%`
+    head.append(loc, conf)
+
     const fmt = document.createElement('span')
     fmt.className = 'candidate-panel__fmt muted'
     fmt.textContent = site.format
-    btn.append(loc, fmt)
+    btn.append(head, fmt)
     btn.addEventListener('click', () => actions.openCandidate(site))
     li.appendChild(btn)
     list.appendChild(li)

@@ -691,9 +691,39 @@ body {
   filter: brightness(1.15);
 }
 
+.candidate-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .candidate-panel__loc {
   font-size: 12px;
   color: var(--accent);
+}
+
+/* 매칭 신뢰도 배지. (04 §5.3, M14_2) */
+.candidate-panel__conf {
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.candidate-panel__conf.conf-high {
+  color: #5fd38a;
+  border-color: #3f9e63;
+}
+
+.candidate-panel__conf.conf-mid {
+  color: #e2b341;
+  border-color: #c8a23a;
+}
+
+.candidate-panel__conf.conf-low {
+  color: var(--fg-muted);
 }
 
 .candidate-panel__fmt {
