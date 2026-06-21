@@ -106,6 +106,9 @@ async function analyzeScanned(
           nativeMethods: [],
           jniFunctions: []
         })
+      } finally {
+        // 추출 후 WASM 파스 트리를 즉시 해제(대규모에서 메모리 누적 방지). 산출물은 순수 데이터라 안전. (TODO_EXTRA C)
+        tree.delete()
       }
       parsedCount += 1
       byLanguage[file.language] = (byLanguage[file.language] ?? 0) + 1
@@ -155,7 +158,11 @@ export async function reanalyzeFile(
   try {
     const code = await readFile(file.absolutePath, 'utf8')
     const tree = parser.parse(file.language, code)
-    newInfo = extractFileInfo(tree, file)
+    try {
+      newInfo = extractFileInfo(tree, file)
+    } finally {
+      tree.delete() // 추출 후 파스 트리 즉시 해제. (TODO_EXTRA C)
+    }
   } catch {
     newInfo = {
       file,
