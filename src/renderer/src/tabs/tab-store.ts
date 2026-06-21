@@ -62,6 +62,8 @@ export interface TabState {
   impact: TabImpact | null
   /** 전/후 비교용 그래프 스냅샷. null이면 미캡처. (03, 06 §5, M14_3) */
   snapshot: CodeGraph | null
+  /** 복원 시 프로젝트 경로가 존재하지 않음(이동/삭제). 자동 분석을 건너뛰고 안내를 표시한다. (TODO_EXTRA D) */
+  pathMissing: boolean
 }
 
 /** 재분석 영향 범위(추가/변경 노드 강조 + 요약). (06 §5, M12_4) */
@@ -106,13 +108,18 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     log: null,
     codeView: null,
     impact: null,
-    snapshot: null
+    snapshot: null,
+    pathMissing: false
   }
 }
+
+/** 최근 닫은 탭 이력 보관 최대 개수. (TODO_EXTRA D) */
+const MAX_RECENTLY_CLOSED = 10
 
 export class TabStore {
   private tabs: TabState[] = []
   private activeId: string | null = null
+  private recentlyClosed: PersistedTab[] = []
   private readonly listeners = new Set<() => void>()
 
   subscribe(listener: () => void): () => void {
@@ -147,9 +154,16 @@ export class TabStore {
 
   /**
    * 프로젝트를 연다. (01 §4, M2_1)
-   * 활성 탭이 비어 있으면 그 탭에 로드(재사용), 아니면 새 탭에 로드한다.
+   * 이미 같은 프로젝트를 연 탭이 있으면 그 탭으로 포커스한다(중복 방지). (TODO_EXTRA D)
+   * 그렇지 않고 활성 탭이 비어 있으면 그 탭에 로드(재사용), 아니면 새 탭에 로드한다.
    */
   openProject(path: string, name: string): TabState {
+    const existing = this.tabs.find((t) => t.projectPath === path)
+    if (existing) {
+      this.activeId = existing.id
+      this.emit()
+      return existing
+    }
     const active = this.getActive()
     if (active && active.projectPath === null) {
       active.projectPath = path
@@ -158,6 +172,34 @@ export class TabStore {
       return active
     }
     const tab = createTab(path, name)
+    this.tabs.push(tab)
+    this.activeId = tab.id
+    this.emit()
+    return tab
+  }
+
+  /** 탭의 경로 부재 상태를 설정한다(복원 시 프로젝트가 사라진 경우). (TODO_EXTRA D) */
+  setPathMissing(id: string, missing: boolean): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || tab.pathMissing === missing) return
+    tab.pathMissing = missing
+    this.emit()
+  }
+
+  /** 최근 닫은 탭(프로젝트) 이력. 최신이 마지막. (TODO_EXTRA D) */
+  getRecentlyClosed(): readonly PersistedTab[] {
+    return this.recentlyClosed
+  }
+
+  /**
+   * 가장 최근에 닫은 탭을 다시 연다(Ctrl+Shift+T). 이력이 없으면 null.
+   * 프로젝트 탭이면 호출 측에서 재분석한다(분석 결과는 영속되지 않음). (TODO_EXTRA D)
+   */
+  reopenClosed(): TabState | null {
+    const last = this.recentlyClosed.pop()
+    if (!last) return null
+    const tab = createTab(last.projectPath, last.projectName)
+    tab.view = { ...tab.view, mode: last.view.mode, selectedNodeId: last.view.selectedNodeId }
     this.tabs.push(tab)
     this.activeId = tab.id
     this.emit()
@@ -329,6 +371,16 @@ export class TabStore {
   closeTab(id: string): void {
     const index = this.tabs.findIndex((tab) => tab.id === id)
     if (index === -1) return
+    // 프로젝트가 있는 탭은 닫은 탭 이력에 보관(빈 탭은 복원 의미 없음). (TODO_EXTRA D)
+    const closed = this.tabs[index]
+    if (closed.projectPath !== null) {
+      this.recentlyClosed.push({
+        projectPath: closed.projectPath,
+        projectName: closed.projectName,
+        view: { mode: closed.view.mode, selectedNodeId: closed.view.selectedNodeId }
+      })
+      if (this.recentlyClosed.length > MAX_RECENTLY_CLOSED) this.recentlyClosed.shift()
+    }
     this.tabs.splice(index, 1)
     if (this.activeId === id) {
       const fallback = this.tabs[index] ?? this.tabs[index - 1] ?? null
@@ -350,14 +402,18 @@ export class TabStore {
    * 세션 저장용으로 탭 목록을 직렬화한다. (01 §5, M8_3·M8_4)
    * 탭/프로젝트 경로/활성 탭과 각 탭의 뷰 상태(모드 + 선택 노드)를 포함한다.
    */
-  serialize(): { tabs: PersistedTab[]; activeIndex: number } {
+  serialize(): { tabs: PersistedTab[]; activeIndex: number; recentlyClosed: PersistedTab[] } {
     const tabs: PersistedTab[] = this.tabs.map((tab) => ({
       projectPath: tab.projectPath,
       projectName: tab.projectName,
       view: { mode: tab.view.mode, selectedNodeId: tab.view.selectedNodeId }
     }))
     const activeIndex = this.tabs.findIndex((tab) => tab.id === this.activeId)
-    return { tabs, activeIndex: activeIndex === -1 ? 0 : activeIndex }
+    return {
+      tabs,
+      activeIndex: activeIndex === -1 ? 0 : activeIndex,
+      recentlyClosed: [...this.recentlyClosed]
+    }
   }
 
   /**
@@ -365,7 +421,12 @@ export class TabStore {
    * 기존 탭을 대체하고, 각 탭의 뷰 상태(모드/선택 노드)를 복원하며 activeIndex 탭을 활성화한다.
    * 복원된 탭 목록을 반환한다. 분석 결과는 영속되지 않으므로 호출 측에서 프로젝트 탭을 재분석한다.
    */
-  restore(persisted: readonly PersistedTab[], activeIndex: number): TabState[] {
+  restore(
+    persisted: readonly PersistedTab[],
+    activeIndex: number,
+    recentlyClosed: readonly PersistedTab[] = []
+  ): TabState[] {
+    this.recentlyClosed = [...recentlyClosed]
     this.tabs = persisted.map((p) => {
       const tab = createTab(p.projectPath, p.projectName)
       // 역추적은 영속하지 않으므로 항상 null로 복원한다. (M10_2)

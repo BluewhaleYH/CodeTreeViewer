@@ -345,6 +345,87 @@ describe('TabStore — 뷰 상태(모드/선택 노드) 영속 (M8_4)', () => {
   })
 })
 
+describe('TabStore — 동일 프로젝트 중복 탭 방지 (TODO_EXTRA D)', () => {
+  it('이미 열린 프로젝트를 다시 열면 새 탭 대신 기존 탭으로 포커스한다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    const b = store.openProject('/p/B', 'B')
+    expect(store.getActiveId()).toBe(b.id)
+    const again = store.openProject('/p/A', 'A')
+    expect(again.id).toBe(a.id) // 새 탭 아님
+    expect(store.getTabs()).toHaveLength(2)
+    expect(store.getActiveId()).toBe(a.id)
+  })
+})
+
+describe('TabStore — 닫은 탭 복원 (TODO_EXTRA D)', () => {
+  it('프로젝트 탭을 닫으면 이력에 쌓이고 reopenClosed로 복원한다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setViewMode(a.id, 'tree')
+    store.closeTab(a.id)
+    expect(store.getRecentlyClosed()).toHaveLength(1)
+
+    const reopened = store.reopenClosed()
+    expect(reopened).not.toBeNull()
+    expect(reopened?.projectPath).toBe('/p/A')
+    expect(reopened?.view.mode).toBe('tree') // 뷰 상태 복원
+    expect(store.getRecentlyClosed()).toHaveLength(0) // 이력에서 제거
+  })
+
+  it('빈 탭(프로젝트 없음)은 이력에 쌓지 않는다', () => {
+    const store = new TabStore()
+    const e = store.addEmptyTab()
+    store.closeTab(e.id)
+    expect(store.getRecentlyClosed()).toHaveLength(0)
+  })
+
+  it('이력이 없으면 reopenClosed는 null', () => {
+    const store = new TabStore()
+    expect(store.reopenClosed()).toBeNull()
+  })
+
+  it('가장 최근에 닫은 탭부터 복원한다(LIFO)', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    const b = store.openProject('/p/B', 'B')
+    store.closeTab(a.id)
+    store.closeTab(b.id)
+    expect(store.reopenClosed()?.projectPath).toBe('/p/B')
+    expect(store.reopenClosed()?.projectPath).toBe('/p/A')
+  })
+
+  it('이력은 직렬화/복원된다(세션 영속)', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.closeTab(a.id)
+    const snapshot = store.serialize()
+    expect(snapshot.recentlyClosed.map((t) => t.projectPath)).toEqual(['/p/A'])
+
+    const store2 = new TabStore()
+    store2.restore(snapshot.tabs, snapshot.activeIndex, snapshot.recentlyClosed)
+    expect(store2.reopenClosed()?.projectPath).toBe('/p/A')
+  })
+})
+
+describe('TabStore — 깨진 경로 탭 (TODO_EXTRA D)', () => {
+  it('setPathMissing으로 경로 부재를 표시/해제한다', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/missing', 'Missing')
+    expect(a.pathMissing).toBe(false)
+    store.setPathMissing(a.id, true)
+    expect(a.pathMissing).toBe(true)
+  })
+
+  it('pathMissing은 직렬화되지 않는다(런타임 상태)', () => {
+    const store = new TabStore()
+    const a = store.openProject('/p/A', 'A')
+    store.setPathMissing(a.id, true)
+    const snapshot = store.serialize()
+    expect(snapshot.tabs[0]).not.toHaveProperty('pathMissing')
+  })
+})
+
 describe('TabStore — 함수 호출처 역추적 상태 (M10_2)', () => {
   it('새 탭은 역추적 상태가 없다', () => {
     const store = new TabStore()

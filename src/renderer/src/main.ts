@@ -170,7 +170,7 @@ if (root) {
       const json = JSON.stringify(snapshot)
       if (json === lastSerialized) return
       lastSerialized = json
-      void window.codetree.saveTabs(snapshot.tabs, snapshot.activeIndex)
+      void window.codetree.saveTabs(snapshot.tabs, snapshot.activeIndex, snapshot.recentlyClosed)
     }
 
     const render = (): void => {
@@ -256,8 +256,15 @@ if (root) {
       const selection = await window.codetree.openProjectDialog()
       if (selection) {
         const tab = store.openProject(selection.path, selection.name)
-        void analyze(tab.id, selection.path)
+        // 중복 프로젝트면 기존 탭으로 포커스만(이미 분석됨) → idle일 때만 분석한다. (TODO_EXTRA D)
+        if (tab.analysis.status === 'idle') void analyze(tab.id, selection.path)
       }
+    }
+
+    // 닫은 탭 다시 열기(Ctrl+Shift+T). 프로젝트 탭이면 재분석한다. (TODO_EXTRA D)
+    const reopenClosed = (): void => {
+      const tab = store.reopenClosed()
+      if (tab?.projectPath) void analyze(tab.id, tab.projectPath)
     }
 
     // 로그 덤프 열기: 활성 탭에 로드(없으면 새 탭). (04 §2, M11_1)
@@ -300,6 +307,7 @@ if (root) {
       if (action === 'open-project') void openProject()
       else if (action === 'open-log') void openLog()
       else if (action === 'new-tab') store.addEmptyTab()
+      else if (action === 'reopen-tab') reopenClosed()
       else if (action === 'close-tab') {
         const active = store.getActive()
         if (!active) return
@@ -340,14 +348,19 @@ if (root) {
 
       const session = await window.codetree.loadSession()
       if (session.tabs.length > 0) {
-        const restored = store.restore(session.tabs, session.activeIndex)
+        const restored = store.restore(session.tabs, session.activeIndex, session.recentlyClosed)
         // 복원 직후 상태를 마지막 직렬화 기준으로 잡아 불필요한 재저장을 막는다.
         lastSerialized = JSON.stringify(store.serialize())
         render()
-        restored.forEach((tab, i) => {
-          const path = session.tabs[i]?.projectPath
-          if (path) void analyze(tab.id, path)
-        })
+        // 복원된 프로젝트 탭: 경로가 존재하면 재분석, 사라졌으면 깨진 경로로 표시. (TODO_EXTRA D)
+        await Promise.all(
+          restored.map(async (tab, i) => {
+            const path = session.tabs[i]?.projectPath
+            if (!path) return
+            if (await window.codetree.projectExists(path)) void analyze(tab.id, path)
+            else store.setPathMissing(tab.id, true)
+          })
+        )
       } else {
         store.addEmptyTab()
         render()

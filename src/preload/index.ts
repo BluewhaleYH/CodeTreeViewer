@@ -10,7 +10,7 @@ export interface ProjectSelection {
   name: string
 }
 
-export type MenuAction = 'open-project' | 'new-tab' | 'close-tab' | 'open-log'
+export type MenuAction = 'open-project' | 'new-tab' | 'close-tab' | 'open-log' | 'reopen-tab'
 
 let analysisCounter = 0
 
@@ -18,7 +18,8 @@ const MENU_CHANNELS: Record<string, MenuAction> = {
   'menu:open-project': 'open-project',
   'menu:new-tab': 'new-tab',
   'menu:close-tab': 'close-tab',
-  'menu:open-log': 'open-log'
+  'menu:open-log': 'open-log',
+  'menu:reopen-tab': 'reopen-tab'
 }
 
 /**
@@ -67,8 +68,16 @@ const api = {
 
   /** 세션 로드 / 탭 저장. (01 §5) */
   loadSession: (): Promise<SessionState> => ipcRenderer.invoke('session:load'),
-  saveTabs: (tabs: PersistedTab[], activeIndex: number): Promise<void> =>
-    ipcRenderer.invoke('session:save-tabs', { tabs, activeIndex }),
+  saveTabs: (
+    tabs: PersistedTab[],
+    activeIndex: number,
+    recentlyClosed: PersistedTab[]
+  ): Promise<void> =>
+    ipcRenderer.invoke('session:save-tabs', { tabs, activeIndex, recentlyClosed }),
+
+  /** 프로젝트 경로가 존재하는 디렉터리인지 확인(복원 시 깨진 경로 감지). (TODO_EXTRA D) */
+  projectExists: (path: string): Promise<boolean> =>
+    ipcRenderer.invoke('project:exists', { path }),
 
   /** 세션 비차단 알림(손상 감지 등) 구독. 해제 함수를 반환한다. (01 §10) */
   onSessionNotice: (handler: (notice: SessionNotice) => void): (() => void) => {

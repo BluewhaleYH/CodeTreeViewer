@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { SourceParser } from './analysis/parser'
 import { resolveParserConfig } from './analysis/wasm-paths'
@@ -159,8 +159,20 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('session:load', (): SessionState => getSessionManager().get())
   ipcMain.handle(
     'session:save-tabs',
-    (_event, payload: { tabs: PersistedTab[]; activeIndex: number }): void => {
-      getSessionManager().setTabs(payload.tabs, payload.activeIndex)
+    (
+      _event,
+      payload: { tabs: PersistedTab[]; activeIndex: number; recentlyClosed?: PersistedTab[] }
+    ): void => {
+      getSessionManager().setTabs(payload.tabs, payload.activeIndex, payload.recentlyClosed ?? [])
     }
   )
+
+  // 프로젝트 경로 존재 확인(복원 시 깨진 경로 감지). (TODO_EXTRA D)
+  ipcMain.handle('project:exists', async (_event, p: { path: string }): Promise<boolean> => {
+    try {
+      return (await stat(p.path)).isDirectory()
+    } catch {
+      return false
+    }
+  })
 }
