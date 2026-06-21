@@ -4,6 +4,7 @@ import { buildAppMenu } from './menu'
 import { registerIpcHandlers } from './ipc'
 import { getSessionManager } from './session/session-manager'
 import { initAutoUpdate } from './updater'
+import { installContentSecurityPolicy } from './security'
 
 // 단일 인스턴스 보장 (01 §7).
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
@@ -19,6 +20,7 @@ if (!gotSingleInstanceLock) {
     const session = getSessionManager()
     await session.init() // 창 복원 전에 세션을 읽는다. (01 §5)
 
+    installContentSecurityPolicy() // 창 로드 전에 CSP 헤더 주입을 등록한다. (01 §2)
     registerIpcHandlers()
     buildAppMenu()
     const win = createMainWindow(session)
