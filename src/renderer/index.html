@@ -3,11 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- 개발 HMR을 허용하는 CSP. 프로덕션 강화는 이후 단계에서 다룬다. -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:"
-    />
+    <!-- CSP는 main의 응답 헤더로 dev/prod 분기 주입한다(src/main/security.ts). -->
     <title>CodeTreeViewer</title>
   </head>
   <body>
