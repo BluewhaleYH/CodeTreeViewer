@@ -262,7 +262,8 @@ body {
   font-size: 11px;
 }
 
-.logview__regex {
+.logview__regex,
+.logview__wrap {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -449,6 +450,26 @@ body {
 .logview__text {
   white-space: pre;
   padding-right: 12px;
+}
+
+/* 줄바꿈(wrap) 모드: 가변 높이 가상 스크롤. 가로 확장 대신 라인을 접는다. (TODO_EXTRA C) */
+.logview.is-wrap .logview__window {
+  width: 100%;
+  min-width: 0;
+}
+
+.logview.is-wrap .logview__row {
+  height: auto;
+  min-height: 18px;
+}
+
+.logview.is-wrap .logview__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.logview.is-wrap .logview__ln {
+  align-self: flex-start;
 }
 
 /* 그래프 캔버스(Cytoscape 호스트) */

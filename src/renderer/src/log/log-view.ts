@@ -1,4 +1,5 @@
 import { visibleRange } from './log-virtual'
+import { visualRows, buildPrefix, wrappedRange } from './log-wrap'
 import { parseAll, type LogcatFields, type LogLevel } from './logcat-parse'
 import { ALL_LEVELS, filterIndices, type LogFilter } from './log-filter'
 import { relatedLogLines } from './log-match'
@@ -44,6 +45,12 @@ export class LogView {
   private textQuery = ''
   private useRegex = false
 
+  // 줄바꿈(wrap) 모드: 가변 높이 가상 스크롤. (TODO_EXTRA C)
+  private wrap = false
+  private wrapPrefix: number[] | null = null
+  private wrapCharsPerRow = 0
+  private charWidth = 0
+
   // 검색(이동/강조). (M11_6)
   private searchQuery = ''
   private searchRegex = false
@@ -75,6 +82,7 @@ export class LogView {
         <input class="logview__tag" type="text" placeholder="태그" spellcheck="false" />
         <input class="logview__textq" type="text" placeholder="텍스트" spellcheck="false" />
         <label class="logview__regex"><input type="checkbox" /> 정규식</label>
+        <label class="logview__wrap"><input type="checkbox" /> 줄바꿈</label>
       </div>
       <div class="logview__search">
         <input class="logview__searchq" type="text" placeholder="로그 검색" spellcheck="false" />
@@ -137,8 +145,24 @@ export class LogView {
         this.applyFilter()
       }
     )
+    // 줄바꿈 토글: 가변 높이 가상 스크롤로 전환. (TODO_EXTRA C)
+    ;(this.host.querySelector('.logview__wrap input') as HTMLInputElement).addEventListener(
+      'change',
+      (e) => {
+        this.wrap = (e.target as HTMLInputElement).checked
+        this.wrapPrefix = null
+        this.host.classList.toggle('is-wrap', this.wrap)
+        this.renderWindow()
+      }
+    )
 
     this.body.addEventListener('scroll', () => this.renderWindow())
+    // 패널 너비 변경 시 행당 글자 수가 달라지므로 wrap 캐시를 무효화한다.
+    new ResizeObserver(() => {
+      if (!this.wrap) return
+      this.wrapPrefix = null
+      this.renderWindow()
+    }).observe(this.body)
   }
 
   private buildLevelToggles(): void {
@@ -184,6 +208,7 @@ export class LogView {
     this.matchPos = -1
     this.renderSearchCount()
     this.host.classList.toggle('is-active', Boolean(dump))
+    this.host.classList.toggle('is-wrap', this.wrap)
     ;(this.host.querySelector('.logview__title') as HTMLElement).textContent = this.name
     this.applyFilter()
   }
@@ -211,9 +236,43 @@ export class LogView {
     this.renderWindow()
   }
 
+  /** 등폭 글자 폭(px)을 1회 측정해 캐시한다. */
+  private measureCharWidth(): number {
+    if (this.charWidth > 0) return this.charWidth
+    const probe = document.createElement('span')
+    probe.className = 'logview__text'
+    probe.style.position = 'absolute'
+    probe.style.visibility = 'hidden'
+    probe.style.whiteSpace = 'pre'
+    probe.textContent = 'M'.repeat(100)
+    this.windowEl.appendChild(probe)
+    const w = probe.getBoundingClientRect().width / 100
+    probe.remove()
+    if (w > 0) this.charWidth = w
+    return this.charWidth
+  }
+
+  /** 현재 패널 너비에서 한 시각 행에 들어가는 글자 수. */
+  private charsPerRow(): number {
+    const cw = this.measureCharWidth()
+    const GUTTER = 66 // .logview__ln(56) + 우측 패딩(10)
+    const avail = Math.max(0, this.body.clientWidth - GUTTER)
+    return cw > 0 ? Math.max(1, Math.floor(avail / cw)) : 80
+  }
+
+  /** wrap 모드 누적 오프셋(prefix)을 (필요 시) 재계산해 캐시한다. */
+  private ensureWrapPrefix(): void {
+    const cpr = this.charsPerRow()
+    if (this.wrapPrefix && this.wrapCharsPerRow === cpr) return
+    const counts = this.visible.map((idx) => visualRows(this.lines[idx].length, cpr))
+    this.wrapPrefix = buildPrefix(counts, ROW_HEIGHT)
+    this.wrapCharsPerRow = cpr
+  }
+
   /** 필터를 적용해 가시 인덱스를 재계산하고 다시 그린다. */
   private applyFilter(): void {
     this.visible = filterIndices(this.lines, this.parsed, this.filter)
+    this.wrapPrefix = null // 가시 집합 변경 → wrap 오프셋 재계산 필요
     this.countEl.textContent =
       this.visible.length === this.lines.length
         ? `${this.lines.length.toLocaleString()} 라인`
@@ -248,7 +307,9 @@ export class LogView {
     const originalIndex = this.matches[this.matchPos]
     const pos = this.visible.indexOf(originalIndex)
     if (pos >= 0) {
-      this.body.scrollTop = Math.max(0, pos * ROW_HEIGHT - this.body.clientHeight / 2)
+      if (this.wrap) this.ensureWrapPrefix()
+      const offset = this.wrap && this.wrapPrefix ? this.wrapPrefix[pos] : pos * ROW_HEIGHT
+      this.body.scrollTop = Math.max(0, offset - this.body.clientHeight / 2)
     }
     this.renderSearchCount()
     this.renderWindow()
@@ -258,15 +319,22 @@ export class LogView {
   /** 보이는 구간만 렌더하고, 위/아래 패딩으로 전체 스크롤 높이를 유지한다(가상 스크롤). */
   private renderWindow(): void {
     const total = this.visible.length
-    const { start, end } = visibleRange(
-      this.body.scrollTop,
-      this.body.clientHeight,
-      ROW_HEIGHT,
-      total,
-      OVERSCAN
-    )
-    this.windowEl.style.paddingTop = `${start * ROW_HEIGHT}px`
-    this.windowEl.style.paddingBottom = `${Math.max(0, total - end) * ROW_HEIGHT}px`
+    let start: number
+    let end: number
+    if (this.wrap) {
+      this.ensureWrapPrefix()
+      const r = wrappedRange(this.body.scrollTop, this.body.clientHeight, this.wrapPrefix!, OVERSCAN)
+      start = r.start
+      end = r.end
+      this.windowEl.style.paddingTop = `${r.padTop}px`
+      this.windowEl.style.paddingBottom = `${r.padBottom}px`
+    } else {
+      const r = visibleRange(this.body.scrollTop, this.body.clientHeight, ROW_HEIGHT, total, OVERSCAN)
+      start = r.start
+      end = r.end
+      this.windowEl.style.paddingTop = `${start * ROW_HEIGHT}px`
+      this.windowEl.style.paddingBottom = `${Math.max(0, total - end) * ROW_HEIGHT}px`
+    }
 
     const frag = document.createDocumentFragment()
     for (let i = start; i < end; i += 1) {
