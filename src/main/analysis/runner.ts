@@ -5,7 +5,7 @@ import type { SourceParser } from './parser'
 import { extractFileInfo, type FileInfo } from './extract'
 import { buildFileGraph } from './dependency-graph'
 import type { DomainRule } from './domain'
-import { AnalysisCache, ANALYZER_VERSION, fileFingerprint } from './cache'
+import { AnalysisCache, ANALYZER_VERSION, fileFingerprint, contentFingerprint } from './cache'
 import type { AnalysisProgress, AnalysisSummary, SourceLanguage } from '../../shared/analysis'
 import type { CodeGraph } from '../../shared/graph'
 import type { LogSite } from '../../shared/log'
@@ -211,16 +211,28 @@ export async function analyzeProject(
   options.onProgress?.({ phase: 'scanning', processed: 0, total: 0 })
   const scanResult = await scanProject(projectPath, options.scan)
   const fingerprint = await fileFingerprint(scanResult.files)
+  const total = scanResult.files.length
 
   const cached = await cache.get(projectPath)
-  if (cached && cached.version === ANALYZER_VERSION && cached.fingerprint === fingerprint) {
-    const total = scanResult.files.length
-    options.onProgress?.({ phase: 'done', processed: total, total })
-    return {
-      summary: cached.summary,
-      graph: cached.graph,
-      logSites: cached.logSites ?? [],
-      fromCache: true
+  if (cached && cached.version === ANALYZER_VERSION) {
+    const reuse = (): AnalyzeResult => {
+      options.onProgress?.({ phase: 'done', processed: total, total })
+      return {
+        summary: cached.summary,
+        graph: cached.graph,
+        logSites: cached.logSites ?? [],
+        fromCache: true
+      }
+    }
+    // 1) stat 지문 일치 → 즉시 재사용(빠른 경로).
+    if (cached.fingerprint === fingerprint) return reuse()
+    // 2) stat이 달라졌어도 내용 해시가 같으면(예: mtime만 변함) 재분석 생략 + stat 지문 갱신.
+    if (cached.contentFingerprint) {
+      const contentFp = await contentFingerprint(scanResult.files)
+      if (contentFp === cached.contentFingerprint) {
+        await cache.set(projectPath, { ...cached, fingerprint })
+        return reuse()
+      }
     }
   }
 
@@ -229,6 +241,7 @@ export async function analyzeProject(
     root: projectPath,
     version: ANALYZER_VERSION,
     fingerprint,
+    contentFingerprint: await contentFingerprint(scanResult.files),
     summary,
     graph,
     logSites

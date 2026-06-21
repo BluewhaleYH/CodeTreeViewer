@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ScannedFile } from './scanner'
 import type { AnalysisSummary } from '../../shared/analysis'
@@ -8,18 +8,37 @@ import type { LogSite } from '../../shared/log'
 
 /**
  * 분석 결과 캐시. (02 §7.2)
- * 무효화 키 = 파일 stat(mtime+size) 지문 + 분석기 버전.
- * stat 기반(내용 해시 아님) → 미변경 파일을 다시 읽지 않고 빠르게 검증. (추가-5)
+ * 무효화 키 = 파일 지문(하이브리드) + 분석기 버전.
+ *
+ * 지문은 2단계(하이브리드):
+ * 1) stat(mtime+size) 지문 — 빠름. 일치하면 그대로 재사용.
+ * 2) stat이 달라졌을 때만 내용 해시(contentFingerprint)로 실제 변경 여부 재확인 →
+ *    mtime만 바뀌고 내용은 같은 경우(git checkout 등)에 불필요한 재분석을 피한다. (TODO_EXTRA B)
+ *
  * 저장 위치는 세션과 분리(userData). 사용자 프로젝트 폴더는 오염하지 않는다. (01 §6)
+ * 누적 방지를 위해 set 시 LRU 상한 정리를 수행한다. (TODO_EXTRA C)
  */
 
-/** 분석 로직이 바뀌면 올린다(기존 캐시 무효화). M4_5=5, M11_4 로그 호출 추출=6. */
-export const ANALYZER_VERSION = 6
+/**
+ * 분석기 버전. 빌드 시 electron.vite.config.ts가 `src/main/analysis` 소스 해시를
+ * `__ANALYZER_HASH__`로 주입한다 → 분석 로직이 바뀌면 자동으로 값이 달라져 기존 캐시가 무효화된다
+ * (수동 버전 관리 불필요). (TODO_EXTRA B)
+ * 테스트(vitest)는 define 미적용이라 'dev'로 폴백한다(런 내 일관).
+ */
+declare const __ANALYZER_HASH__: string | undefined
+export const ANALYZER_VERSION: string =
+  typeof __ANALYZER_HASH__ === 'string' ? __ANALYZER_HASH__ : 'dev'
+
+/** 캐시 디렉터리에 보관할 최대 프로젝트 수(LRU 초과분 정리). */
+export const MAX_CACHE_ENTRIES = 50
 
 export interface CacheEntry {
   root: string
-  version: number
+  version: string
+  /** stat(mtime+size) 지문. */
   fingerprint: string
+  /** 내용 해시 지문(하이브리드 재확인용). */
+  contentFingerprint?: string
   summary: AnalysisSummary
   graph: CodeGraph
   /** 로그→코드 역추적용 호출 위치. (04 §5, M11_4) */
@@ -38,6 +57,21 @@ export async function fileFingerprint(files: readonly ScannedFile[]): Promise<st
       // 사라진 파일은 'missing'으로 표기(지문에 반영).
     }
     hash.update(`${file.relativePath}|${meta}\n`)
+  }
+  return hash.digest('hex')
+}
+
+/** 스캔된 파일들의 내용 해시 지문. mtime이 달라도 내용이 같으면 동일하다. */
+export async function contentFingerprint(files: readonly ScannedFile[]): Promise<string> {
+  const hash = createHash('sha256')
+  for (const file of files) {
+    hash.update(`${file.relativePath}|`)
+    try {
+      hash.update(await readFile(file.absolutePath))
+    } catch {
+      hash.update('missing')
+    }
+    hash.update('\n')
   }
   return hash.digest('hex')
 }
@@ -66,5 +100,23 @@ export class AnalysisCache {
     // 원자적 쓰기(부분기록 방지). (01 §10 정책 준용)
     await writeFile(tmp, JSON.stringify(entry))
     await rename(tmp, target)
+    await this.prune()
+  }
+
+  /** 캐시 항목이 상한을 넘으면 가장 오래된(mtime 기준) 것부터 정리한다(LRU). (TODO_EXTRA C) */
+  async prune(maxEntries = MAX_CACHE_ENTRIES): Promise<void> {
+    try {
+      const names = (await readdir(this.dir)).filter((n) => n.endsWith('.json'))
+      if (names.length <= maxEntries) return
+      const withTime = await Promise.all(
+        names.map(async (n) => ({ n, t: (await stat(join(this.dir, n))).mtimeMs }))
+      )
+      withTime.sort((a, b) => b.t - a.t) // 최신 우선
+      for (const { n } of withTime.slice(maxEntries)) {
+        await unlink(join(this.dir, n)).catch(() => {})
+      }
+    } catch {
+      // 디렉터리 부재 등은 무시.
+    }
   }
 }
