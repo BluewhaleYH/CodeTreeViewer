@@ -11,10 +11,7 @@
 
 ## A. 보안 / 배포
 
-- [ ] **렌더러 CSP 완화** (발생: M0)
-  - [현황] `src/renderer/index.html`의 CSP가 dev HMR을 위해 `'unsafe-inline' 'unsafe-eval'` 허용.
-  - [영향] 프로덕션에서 XSS 방어 약화.
-  - [대응] 프로덕션 빌드에서 CSP 강화(dev/prod 분기). → 보안 하드닝/**M9** 즈음.
+- [x] **렌더러 CSP 완화** (발생: M0) — **해결**(#62): 정적 `<meta>` CSP 제거, main에서 응답 헤더로 dev/prod 분기 주입(`src/main/security.ts`). prod는 `script-src 'self'`로 `unsafe-inline`/`unsafe-eval` 제거. prod 빌드에서 인라인 스크립트 차단 양성 검증, Monaco/cytoscape/로그뷰 위반 0건.
 
 - [x] **패키징 wasm 위치** (발생: M3_2/M3_3) — **M9 해결**: `electron-builder.yml` `extraResources`로 wasm 5종(tree-sitter + java/kotlin/c/cpp)을 asar 밖 `resources/wasm/`에 복사, 런타임 `wasm-paths.ts`가 패키징 경로를 해석.
 
