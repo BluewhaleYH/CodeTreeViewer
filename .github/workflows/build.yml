@@ -1,8 +1,9 @@
 name: build
 
 # 패키징 산출물을 멀티 OS 러너에서 빌드한다. (DEPLOY.md §6)
-# - main push / PR / 수동 실행: 빌드 검증(퍼블리시 없음).
+# - main push / PR / 수동 실행: 빌드 검증만(퍼블리시·아티팩트 업로드 없음).
 # - 태그(v*) push: GitHub Releases에 퍼블리시 + latest*.yml 생성(자동 업데이트 피드). (DEPLOY.md §4)
+# 배포물은 태그 시 Releases로만 받는다(Actions 아티팩트 저장 쿼터 미사용).
 on:
   push:
     branches: [main]
@@ -30,13 +31,6 @@ jobs:
         run: npx electron-builder --linux AppImage deb --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-dist
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-          if-no-files-found: error
 
   windows:
     name: Windows (nsis + zip)
@@ -53,10 +47,3 @@ jobs:
         run: npx electron-builder --win nsis zip --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-dist
-          path: |
-            dist/*.exe
-            dist/*.zip
-          if-no-files-found: error
