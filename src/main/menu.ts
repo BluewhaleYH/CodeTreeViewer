@@ -36,6 +36,11 @@ export function buildAppMenu(): void {
         { type: 'separator' },
         { label: '새 탭', accelerator: 'Ctrl+T', click: () => emit('menu:new-tab') },
         { label: '탭 닫기', accelerator: 'Ctrl+W', click: () => emit('menu:close-tab') },
+        {
+          label: '닫은 탭 다시 열기',
+          accelerator: 'Ctrl+Shift+T',
+          click: () => emit('menu:reopen-tab')
+        },
         ...(isMac ? [] : [{ type: 'separator' as const }, { role: 'quit' as const, label: '종료' }])
       ]
     }

@@ -42,7 +42,8 @@ export class SessionStore {
       if (!parsed || parsed.version !== SESSION_VERSION || !Array.isArray(parsed.tabs)) {
         return { kind: 'corrupt' }
       }
-      return { kind: 'ok', state: parsed }
+      // 누락 필드(구버전 세션의 recentlyClosed 등)는 기본값으로 보강한다.
+      return { kind: 'ok', state: { ...emptySession(), ...parsed } }
     } catch {
       return { kind: 'corrupt' }
     }

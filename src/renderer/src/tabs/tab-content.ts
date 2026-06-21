@@ -49,6 +49,13 @@ export function renderOverlay(
     return
   }
 
+  // 복원된 프로젝트 경로가 사라진 경우: 분석 대신 안내를 표시한다. (TODO_EXTRA D)
+  if (active.pathMissing) {
+    host.className = 'ws-overlay ws-overlay--center'
+    host.appendChild(renderPathMissing(active))
+    return
+  }
+
   const { status } = active.analysis
   if (status === 'done' && active.analysis.summary) {
     host.className = 'ws-overlay ws-overlay--corner'
@@ -481,6 +488,31 @@ function renderStatsPanel(tab: TabState): HTMLElement {
     panel.appendChild(warn)
   }
   return panel
+}
+
+/** 복원된 프로젝트 경로가 사라졌을 때의 안내. (TODO_EXTRA D) */
+function renderPathMissing(tab: TabState): HTMLElement {
+  const box = document.createElement('div')
+  box.className = 'welcome'
+
+  const icon = document.createElement('div')
+  icon.className = 'welcome__icon'
+  icon.textContent = '⚠️'
+
+  const title = document.createElement('h2')
+  title.className = 'welcome__title'
+  title.textContent = '프로젝트 경로를 찾을 수 없습니다'
+
+  const desc = document.createElement('p')
+  desc.className = 'welcome__desc'
+  desc.textContent = `${tab.projectName ?? '프로젝트'} — 폴더가 이동/삭제되었을 수 있습니다.`
+
+  const path = document.createElement('p')
+  path.className = 'muted'
+  path.textContent = tab.projectPath ?? ''
+
+  box.append(icon, title, desc, path)
+  return box
 }
 
 function renderWelcome(actions: TabContentActions): HTMLElement {

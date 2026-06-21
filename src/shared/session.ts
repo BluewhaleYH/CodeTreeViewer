@@ -26,10 +26,12 @@ export interface SessionState {
   window: WindowState | null
   tabs: PersistedTab[]
   activeIndex: number
+  /** 최근 닫은 탭 이력(최신이 마지막). Ctrl+Shift+T 복원용. (TODO_EXTRA D) */
+  recentlyClosed: PersistedTab[]
 }
 
 export function emptySession(): SessionState {
-  return { version: SESSION_VERSION, window: null, tabs: [], activeIndex: 0 }
+  return { version: SESSION_VERSION, window: null, tabs: [], activeIndex: 0, recentlyClosed: [] }
 }
 
 /** 세션 관련 비차단 알림. 현재는 손상 감지 1종. (01 §10) */

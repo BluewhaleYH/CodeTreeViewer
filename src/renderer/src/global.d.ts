@@ -9,7 +9,7 @@ export interface ProjectSelection {
   name: string
 }
 
-export type MenuAction = 'open-project' | 'new-tab' | 'close-tab' | 'open-log'
+export type MenuAction = 'open-project' | 'new-tab' | 'close-tab' | 'open-log' | 'reopen-tab'
 
 declare global {
   interface Window {
@@ -23,7 +23,12 @@ declare global {
         onProgress: (progress: AnalysisProgress) => void
       ) => Promise<AnalysisResult>
       loadSession: () => Promise<SessionState>
-      saveTabs: (tabs: PersistedTab[], activeIndex: number) => Promise<void>
+      saveTabs: (
+        tabs: PersistedTab[],
+        activeIndex: number,
+        recentlyClosed: PersistedTab[]
+      ) => Promise<void>
+      projectExists: (path: string) => Promise<boolean>
       onSessionNotice: (handler: (notice: SessionNotice) => void) => () => void
       onUpdateNotice: (handler: (notice: UpdateNotice) => void) => () => void
       openLogDialog: () => Promise<LogOpenResult | null>

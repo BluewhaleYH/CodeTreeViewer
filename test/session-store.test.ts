@@ -15,7 +15,8 @@ const sample: SessionState = {
   version: 1,
   window: { bounds: { x: 0, y: 0, width: 1280, height: 800 }, maximized: false },
   tabs: [{ projectPath: '/p/a', projectName: 'a', view: { mode: 'graph', selectedNodeId: null } }],
-  activeIndex: 0
+  activeIndex: 0,
+  recentlyClosed: []
 }
 
 const sample2: SessionState = {

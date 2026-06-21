@@ -41,8 +41,8 @@ export class SessionManager {
     this.schedule()
   }
 
-  setTabs(tabs: PersistedTab[], activeIndex: number): void {
-    this.state = { ...this.state, tabs, activeIndex }
+  setTabs(tabs: PersistedTab[], activeIndex: number, recentlyClosed: PersistedTab[] = []): void {
+    this.state = { ...this.state, tabs, activeIndex, recentlyClosed }
     this.schedule()
   }
 
