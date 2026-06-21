@@ -1,4 +1,8 @@
-import * as monaco from 'monaco-editor'
+// 전체 'monaco-editor'(모든 언어/언어서비스 포함, ~8MB) 대신 에디터 코어 API만 import. (TODO_EXTRA C)
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
+// 구문 강조에 필요한 java/kotlin 문법(Monarch)만 선택 등록.
+import 'monaco-editor/esm/vs/basic-languages/java/java.contribution'
+import 'monaco-editor/esm/vs/basic-languages/kotlin/kotlin.contribution'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 
 /**
