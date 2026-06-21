@@ -52,6 +52,30 @@ describe('runAnalysis — 스캔→파싱 오케스트레이션 (M3_3)', () => {
     expect(phases[phases.length - 1]).toBe('done')
   })
 
+  it('파싱·추출 후 파스 트리를 해제한다(메모리 누수 방지)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
+    await write('A.java', 'class A {}')
+    await write('B.kt', 'fun b() {}')
+
+    // parser.parse를 감싸 반환 트리의 delete 호출을 센다.
+    let deletes = 0
+    const wrapped = {
+      parse(language: Parameters<SourceParser['parse']>[0], code: string) {
+        const tree = parser.parse(language, code)
+        const orig = tree.delete.bind(tree)
+        tree.delete = (): void => {
+          deletes += 1
+          orig()
+        }
+        return tree
+      }
+    } as unknown as SourceParser
+
+    const { summary } = await runAnalysis(root, wrapped)
+    expect(summary.parsedCount).toBe(2)
+    expect(deletes).toBe(2) // 파일마다 정확히 1회 해제
+  })
+
   it('빈 프로젝트도 안전하게 처리한다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
     const { summary } = await runAnalysis(root, parser)
