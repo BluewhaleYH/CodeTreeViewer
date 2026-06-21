@@ -47,8 +47,9 @@ export async function seedCaptureDemo(ctx: CaptureSeedContext): Promise<void> {
   store.openLog(demo.id, {
     path: '/logs/app.logcat',
     name: 'app.logcat',
-    lines: DEMO_LOG_LINES,
-    selectedLine: 5 // E Repository load failed 라인 → 다중 후보 매칭
+    selectedLine: 5, // E Repository load failed 라인 → 다중 후보 매칭
+    selectedRaw: DEMO_LOG_LINES[5] ?? null,
+    source: { mode: 'memory', lines: DEMO_LOG_LINES }
   })
   // 3-뷰 데모: 코드 편집기에 매칭 소스 표시(우측). (M11_5, M12_1)
   store.setCodeView(demo.id, {

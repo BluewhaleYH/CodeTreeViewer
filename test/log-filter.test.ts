@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseLogcatLine, parseAll } from '../src/renderer/src/log/logcat-parse'
-import { filterIndices, compileFilter, EMPTY_FILTER } from '../src/renderer/src/log/log-filter'
+import { parseLogcatLine, parseAll } from '../src/shared/logcat-parse'
+import { filterIndices, compileFilter, EMPTY_FILTER } from '../src/shared/log-filter'
 
 const LINES = [
   '06-19 14:22:01.118  1234  1300 D MainActivity: onCreate()',

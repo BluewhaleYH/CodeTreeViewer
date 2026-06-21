@@ -472,6 +472,11 @@ body {
   align-self: flex-start;
 }
 
+/* 스트림(대용량) 모드: wrap 미지원 → 토글 숨김. (TODO_EXTRA C) */
+.logview.is-stream .logview__wrap {
+  display: none;
+}
+
 /* 그래프 캔버스(Cytoscape 호스트) */
 .ws-graph {
   position: absolute;

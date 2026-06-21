@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { AnalysisProgress, AnalysisResult } from '../shared/analysis'
 import type { PersistedTab, SessionNotice, SessionState } from '../shared/session'
 import type { UpdateNotice } from '../shared/update'
-import type { LogOpenResult } from '../shared/log'
+import type { LogOpenResult, LogSite } from '../shared/log'
 import type { SourceReadResult, SourceSaveResult } from '../shared/source'
 
 export interface ProjectSelection {
@@ -95,6 +95,21 @@ const api = {
 
   /** 로그 덤프 파일 열기 다이얼로그. 취소 시 null. (04 §2, M11_1) */
   openLogDialog: (): Promise<LogOpenResult | null> => ipcRenderer.invoke('log:open'),
+
+  /** 스트리밍 로그: 흩어진 가시 라인 텍스트 읽기. (TODO_EXTRA C) */
+  logLines: (id: number, indices: number[]): Promise<string[]> =>
+    ipcRenderer.invoke('log:lines', { id, indices }),
+  /** 스트리밍 로그: 필터 통과 인덱스(디스크 스캔). */
+  logScan: (
+    id: number,
+    filter: { levels: string[] | null; tag: string; text: string; regex: boolean }
+  ): Promise<number[]> => ipcRenderer.invoke('log:scan', { id, filter }),
+  /** 스트리밍 로그: visible 중 검색 매치 인덱스. */
+  logSearch: (id: number, visible: number[], query: string, regex: boolean): Promise<number[]> =>
+    ipcRenderer.invoke('log:search', { id, visible, query, regex }),
+  /** 스트리밍 로그: 파일 로그 사이트와 연관된 라인 인덱스. */
+  logRelated: (id: number, sites: LogSite[], file: string): Promise<number[]> =>
+    ipcRenderer.invoke('log:related', { id, sites, file }),
 
   /** 프로젝트 내 소스 파일 읽기(content+mtime). 실패 시 null. (04 §6, M11_5·M12_2) */
   readSource: (projectPath: string, relativePath: string): Promise<SourceReadResult | null> =>

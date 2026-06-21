@@ -1,7 +1,7 @@
 import type { AnalysisProgress, AnalysisResult } from '../../shared/analysis'
 import type { PersistedTab, SessionNotice, SessionState } from '../../shared/session'
 import type { UpdateNotice } from '../../shared/update'
-import type { LogOpenResult } from '../../shared/log'
+import type { LogOpenResult, LogSite } from '../../shared/log'
 import type { SourceReadResult, SourceSaveResult } from '../../shared/source'
 
 export interface ProjectSelection {
@@ -32,6 +32,18 @@ declare global {
       onSessionNotice: (handler: (notice: SessionNotice) => void) => () => void
       onUpdateNotice: (handler: (notice: UpdateNotice) => void) => () => void
       openLogDialog: () => Promise<LogOpenResult | null>
+      logLines: (id: number, indices: number[]) => Promise<string[]>
+      logScan: (
+        id: number,
+        filter: { levels: string[] | null; tag: string; text: string; regex: boolean }
+      ) => Promise<number[]>
+      logSearch: (
+        id: number,
+        visible: number[],
+        query: string,
+        regex: boolean
+      ) => Promise<number[]>
+      logRelated: (id: number, sites: LogSite[], file: string) => Promise<number[]>
       readSource: (projectPath: string, relativePath: string) => Promise<SourceReadResult | null>
       saveSource: (
         projectPath: string,

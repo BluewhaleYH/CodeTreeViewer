@@ -41,9 +41,16 @@ export interface TabAnalysisState {
 export interface TabLogState {
   path: string
   name: string
-  lines: string[]
   /** 선택된 로그 라인(0-based). 역추적 후보 표시용. (04 §5, M11_4) */
   selectedLine: number | null
+  /** 선택 라인 원문(후보 패널용; 스트림 모드는 lines 미보유). (TODO_EXTRA C) */
+  selectedRaw: string | null
+  /**
+   * 로그 데이터 소스. memory=전체 라인 보유, stream=대용량 디스크 스트리밍(라인 수만). (TODO_EXTRA C)
+   */
+  source:
+    | { mode: 'memory'; lines: string[] }
+    | { mode: 'stream'; id: number; lineCount: number }
 }
 
 export interface TabState {
@@ -256,11 +263,12 @@ export class TabStore {
     this.emit()
   }
 
-  /** 로그 라인을 선택한다(역추적 후보 표시). (04 §5, M11_4) */
-  selectLogLine(id: string, index: number | null): void {
+  /** 로그 라인을 선택한다(역추적 후보 표시). raw는 후보 패널용 선택 라인 원문. (04 §5, M11_4) */
+  selectLogLine(id: string, index: number | null, raw: string | null = null): void {
     const tab = this.tabs.find((t) => t.id === id)
-    if (!tab || !tab.log || tab.log.selectedLine === index) return
-    tab.log = { ...tab.log, selectedLine: index }
+    if (!tab || !tab.log) return
+    if (tab.log.selectedLine === index && tab.log.selectedRaw === raw) return
+    tab.log = { ...tab.log, selectedLine: index, selectedRaw: raw }
     this.emit()
   }
 

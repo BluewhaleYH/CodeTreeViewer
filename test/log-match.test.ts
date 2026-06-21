@@ -5,8 +5,8 @@ import {
   relatedLogLines,
   confidenceOf,
   confidenceLabel
-} from '../src/renderer/src/log/log-match'
-import { parseAll, parseLogcatLine } from '../src/renderer/src/log/logcat-parse'
+} from '../src/shared/log-match'
+import { parseAll, parseLogcatLine } from '../src/shared/logcat-parse'
 
 describe('buildLogPattern (M11_4)', () => {
   it('정적 세그먼트는 이스케이프, 가변부는 와일드카드', () => {

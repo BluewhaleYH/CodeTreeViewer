@@ -1,4 +1,4 @@
-import type { LogSite } from '../../../shared/log'
+import type { LogSite } from './log'
 import type { LogcatFields } from './logcat-parse'
 
 /**
