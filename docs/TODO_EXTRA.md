@@ -16,15 +16,12 @@
   - [영향] 프로덕션에서 XSS 방어 약화.
   - [대응] 프로덕션 빌드에서 CSP 강화(dev/prod 분기). → 보안 하드닝/**M9** 즈음.
 
-- [ ] **패키징 wasm 위치(asarUnpack)** (발생: M3_2/M3_3)
-  - [현황] `web-tree-sitter`/`tree-sitter-wasms`의 `.wasm`을 dev에선 `node_modules`에서 로드(`wasm-paths.ts`). 패키징(asar) 시 경로/언팩 미처리.
-  - [영향] 패키징 배포본에서 파서 초기화 실패 가능.
-  - [대응] electron-builder `asarUnpack` + 런타임 경로 해석. → **M9**.
+- [x] **패키징 wasm 위치** (발생: M3_2/M3_3) — **M9 해결**: `electron-builder.yml` `extraResources`로 wasm 5종(tree-sitter + java/kotlin/c/cpp)을 asar 밖 `resources/wasm/`에 복사, 런타임 `wasm-paths.ts`가 패키징 경로를 해석.
 
-- [ ] **electron-builder 패키징 세부** (발생: M0)
-  - [현황] 아이콘, deb `maintainer` 등 미설정. 자동 업데이트 설계 미반영.
-  - [영향] 실제 패키징/배포 산출물 미검증.
-  - [대응] → **M9**(`docs/DEPLOY.md` 포함).
+- [ ] **앱 아이콘 미설정** (발생: M0) — 패키징 세부 중 **아이콘만 잔여**.
+  - [현황] deb `maintainer`·자동 업데이트는 M9에서 반영됨. 단 `electron-builder.yml`에 `icon` 미지정, `resources/`(buildResources) 부재 → 기본 Electron 아이콘으로 패키징됨.
+  - [영향] 배포본 브랜딩/식별성 저하(기능 무관).
+  - [대응] 아이콘 자원(png/ico/icns) 추가 + `icon` 경로 지정. → `미정`.
 
 - [ ] **`package.json`의 `allowScripts` 필드** (발생: M0)
   - [현황] 이 샌드박스 npm 래퍼 전용 필드(electron/esbuild 설치 스크립트 승인).
@@ -95,8 +92,8 @@
 - [ ] **동일 프로젝트 중복 탭 허용 여부** (발생: M2) — 앱-2. [대응] `미정`.
 - [ ] **단축키 표 확정** (발생: M1) — **[결정 D13]** 수정자 키 Ctrl(Win/Linux 대상). 현재 Ctrl+O/T/W. 전체 표는 추후. 앱-3.
 - [ ] **경로 깨진(이동/삭제) 탭 처리** (발생: M2) — 앱-5. [대응] `미정`.
-- [ ] **창/탭/파일/뷰 모드 세션 저장·복원** (발생: M1/M2) — [대응] **M8**.
-- [ ] **뷰 모드 토글 UI** (발생: M2_4) — `view.mode` 상태만 존재. [대응] **M5/M6**.
+- [x] **창/탭/파일/뷰 모드 세션 저장·복원** (발생: M1/M2) — **M8 해결**(저장소·창/탭/뷰 복원·손상 대비).
+- [x] **뷰 모드 토글 UI** (발생: M2_4) — **M5/M6 해결**(관계도↔트리 전환 UI).
 - [ ] **스캔 제외 규칙 설정 UI** (발생: M3_1) — 테스트 포함이 기본, 코드 상수로만 조정 가능. [대응] `미정`(설정 화면 도입 시).
 
 ## E. 검증 / 테스트 인프라
@@ -106,10 +103,7 @@
   - [영향] IPC 통합 경로의 회귀를 자동으로 못 잡음.
   - [대응] Playwright(Electron) 등 E2E 도입 검토. → `미정`.
 
-- [ ] **CI 부재** (발생: 전반)
-  - [현황] typecheck/lint/test/build를 로컬에서만 수행. GitHub Actions 등 CI 없음.
-  - [영향] PR 자동 검증 없음.
-  - [대응] CI 워크플로 추가(특히 win nsis는 네이티브/CI 전용). → `미정`(권장).
+- [x] **CI 부재** (발생: 전반) — **M9 해결**: `.github/workflows/build.yml`(Linux/Windows 매트릭스). PR/푸시는 typecheck+lint+test+build, 태그(`v*`)는 멀티 OS 패키징 + GitHub Releases 퍼블리시(`--publish always`).
 
 - [ ] **캡처 모드 데모 시드 코드** (발생: M2~M3)
   - [현황] `main.ts`에 `captureMode`용 데모 탭/분석 결과 시드 코드가 포함.
