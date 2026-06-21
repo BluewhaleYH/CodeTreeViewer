@@ -68,6 +68,12 @@ export class SearchView {
     this.renderResults()
   }
 
+  /** 검색 입력칸으로 포커스를 이동하고 전체 선택한다(Ctrl+F). (TODO_EXTRA D-단축키) */
+  focus(): void {
+    this.input.focus()
+    this.input.select()
+  }
+
   /** 활성 탭의 검색 인덱스를 설정한다. 탭이 바뀌면 입력을 초기화한다. */
   setContext(contextKey: string, index: readonly SearchEntry[]): void {
     this.index = index
