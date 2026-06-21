@@ -319,6 +319,37 @@ if (root) {
       }
     })
 
+    // 렌더러 단축키(메뉴 가속기와 겹치지 않는 렌더러 상태 조작). Ctrl 기준(D13). (01 §8, TODO_EXTRA D)
+    window.addEventListener('keydown', (event) => {
+      if (!event.ctrlKey || event.metaKey || event.altKey) return
+      // Ctrl+F: 검색 입력 포커스
+      if (event.code === 'KeyF' && !event.shiftKey) {
+        event.preventDefault()
+        searchView.focus()
+        return
+      }
+      // Ctrl+Shift+G: 관계도 ↔ 트리 뷰 전환
+      if (event.code === 'KeyG' && event.shiftKey) {
+        const active = store.getActive()
+        if (active && active.projectPath && !active.pathMissing) {
+          event.preventDefault()
+          store.setViewMode(active.id, active.view.mode === 'graph' ? 'tree' : 'graph')
+        }
+        return
+      }
+      // Ctrl+1~9: N번째 탭으로 전환(9=마지막 탭)
+      if (!event.shiftKey && /^Digit[1-9]$/.test(event.code)) {
+        const tabs = store.getTabs()
+        if (tabs.length === 0) return
+        const n = Number(event.code.slice(5))
+        const index = n === 9 ? tabs.length - 1 : n - 1
+        if (index < tabs.length) {
+          event.preventDefault()
+          store.setActive(tabs[index].id)
+        }
+      }
+    })
+
     // 미저장 변경 상태로 창/앱 종료 시 경고. (06 §6, F-E4)
     if (!isCapture) {
       window.addEventListener('beforeunload', (event) => {
