@@ -23,6 +23,7 @@ publish:
   provider: github
   owner: BluewhaleYH
   repo: CodeTreeViewer
+# 앱 아이콘(플레이스홀더). buildResources(resources)의 icon.png에서 플랫폼별 포맷 생성. (TODO_EXTRA A)
 linux:
   target:
     - AppImage
@@ -30,10 +31,12 @@ linux:
   category: Development
   maintainer: BluewhaleYH <bluewhaleyh@gmail.com>
   synopsis: 코드 파일/함수 관계 시각화 도구
+  icon: resources/icon.png
 win:
   target:
     - nsis
     - zip
+  icon: resources/icon.png
 nsis:
   oneClick: false
   perMachine: false
