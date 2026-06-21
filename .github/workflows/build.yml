@@ -15,7 +15,25 @@ on:
 permissions:
   contents: write
 
+# Playwright는 _electron만 사용하므로 브라우저 다운로드를 생략한다(설치 시간/용량 절감).
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
 jobs:
+  e2e:
+    name: E2E (Electron)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # 헤드리스 러너에 가상 디스플레이(xvfb) 제공 + 개발 샌드박스 비활성. (TODO_EXTRA E)
+      - run: xvfb-run --auto-servernum npm run test:e2e
+
+
   linux:
     name: Linux (AppImage + deb)
     runs-on: ubuntu-latest

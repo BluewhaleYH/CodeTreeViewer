@@ -12,3 +12,7 @@ reviews/
 # 기타
 *.log
 .DS_Store
+
+# Playwright (E2E) 산출물
+playwright-report/
+test-results/
