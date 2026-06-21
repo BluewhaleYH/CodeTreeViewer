@@ -9,9 +9,20 @@ import type { ScannedFile } from './analysis/scanner'
 import { AnalysisCache, ANALYZER_VERSION, fileFingerprint } from './analysis/cache'
 import { getSessionManager } from './session/session-manager'
 import { readSourceFile, saveSourceFile } from './source'
+import {
+  LOG_STREAM_THRESHOLD,
+  buildLineIndex,
+  readLinesAt,
+  scanFilter,
+  scanSearch,
+  scanRelated,
+  type LineIndex
+} from './log-store'
+import type { LogFilter } from '../shared/log-filter'
+import type { LogLevel } from '../shared/logcat-parse'
 import type { AnalysisResult } from '../shared/analysis'
 import type { PersistedTab, SessionState } from '../shared/session'
-import type { LogOpenResult } from '../shared/log'
+import type { LogOpenResult, LogSite } from '../shared/log'
 import type { SourceReadResult, SourceSaveResult } from '../shared/source'
 
 export interface ProjectSelection {
@@ -40,6 +51,10 @@ const infosCache = new Map<
   string,
   { files: ScannedFile[]; infos: FileInfo[]; summary: import('../shared/analysis').AnalysisSummary }
 >()
+
+// 스트리밍 로그 레지스트리(세션 한정). id → 파일 경로 + 라인 인덱스. (TODO_EXTRA C)
+const logStreams = new Map<number, { path: string; index: LineIndex }>()
+let logStreamCounter = 0
 
 // 분석 캐시(세션과 분리, userData). (02 §7.2, 01 §6)
 let analysisCache: AnalysisCache | null = null
@@ -151,9 +166,56 @@ export function registerIpcHandlers(): void {
     if (result.canceled || result.filePaths.length === 0) return null
 
     const path = result.filePaths[0]
-    const content = await readFile(path, 'utf8')
-    return { path, name: basename(path), content }
+    const name = basename(path)
+    const { size } = await stat(path)
+    if (size <= LOG_STREAM_THRESHOLD) {
+      const content = await readFile(path, 'utf8')
+      return { mode: 'memory', path, name, content }
+    }
+    // 대용량: 라인 인덱스만 보관, 표시/필터/검색은 디스크 스트리밍. (TODO_EXTRA C)
+    const index = await buildLineIndex(path)
+    logStreamCounter += 1
+    const id = logStreamCounter
+    logStreams.set(id, { path, index })
+    return { mode: 'stream', path, name, id, lineCount: index.offsets.length }
   })
+
+  // 스트리밍 로그: 표시 윈도우(흩어진 가시 라인)·필터·검색·관련 라인. (TODO_EXTRA C)
+  ipcMain.handle('log:lines', (_e, p: { id: number; indices: number[] }): Promise<string[]> => {
+    const s = logStreams.get(p.id)
+    return s ? readLinesAt(s.index, s.path, p.indices) : Promise.resolve([])
+  })
+  ipcMain.handle(
+    'log:scan',
+    (
+      _e,
+      p: { id: number; filter: { levels: LogLevel[] | null; tag: string; text: string; regex: boolean } }
+    ): Promise<number[]> => {
+      const s = logStreams.get(p.id)
+      if (!s) return Promise.resolve([])
+      const filter: LogFilter = {
+        levels: p.filter.levels ? new Set(p.filter.levels) : null,
+        tag: p.filter.tag,
+        text: p.filter.text,
+        regex: p.filter.regex
+      }
+      return scanFilter(s.path, filter)
+    }
+  )
+  ipcMain.handle(
+    'log:search',
+    (_e, p: { id: number; visible: number[]; query: string; regex: boolean }): Promise<number[]> => {
+      const s = logStreams.get(p.id)
+      return s ? scanSearch(s.path, p.visible, p.query, p.regex) : Promise.resolve([])
+    }
+  )
+  ipcMain.handle(
+    'log:related',
+    (_e, p: { id: number; sites: LogSite[]; file: string }): Promise<number[]> => {
+      const s = logStreams.get(p.id)
+      return s ? scanRelated(s.path, p.sites, p.file) : Promise.resolve([])
+    }
+  )
 
   // 세션 로드/탭 저장. 창 상태는 main이 소유. (01 §5)
   ipcMain.handle('session:load', (): SessionState => getSessionManager().get())

@@ -3,8 +3,8 @@ import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
 import { assignDomainColors } from '../graph/domain-colors'
 import { buildCallerAdjacency } from '../graph/backtrace'
 import { diffGraphs } from '../graph/graph-diff'
-import { parseLogcatLine } from '../log/logcat-parse'
-import { matchLogSites, confidenceOf, confidenceLabel } from '../log/log-match'
+import { parseLogcatLine } from '../../../shared/logcat-parse'
+import { matchLogSites, confidenceOf, confidenceLabel } from '../../../shared/log-match'
 import type { CodeGraph } from '../../../shared/graph'
 import type { LogSite } from '../../../shared/log'
 
@@ -209,7 +209,11 @@ function renderCandidatePanel(
   selectedLine: number,
   actions: TabContentActions
 ): HTMLElement {
-  const raw = active.log?.lines[selectedLine] ?? ''
+  // 선택 라인 원문: 메모리 모드는 lines에서, 스트림 모드는 selectedRaw에서. (TODO_EXTRA C)
+  const raw =
+    active.log?.source.mode === 'memory'
+      ? (active.log.source.lines[selectedLine] ?? '')
+      : (active.log?.selectedRaw ?? '')
   const fields = parseLogcatLine(raw)
   const logTag = fields?.tag ?? null
   // 신뢰도 계산 + 내림차순 정렬(가장 그럴듯한 후보 먼저). (04 §5.3, M14_2)

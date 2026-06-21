@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { searchMatches } from '../src/renderer/src/log/log-search'
+import { searchMatches } from '../src/shared/log-search'
 
 const lines = [
   'D MainActivity: onCreate()',

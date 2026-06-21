@@ -1,9 +1,9 @@
 import { visibleRange } from './log-virtual'
 import { visualRows, buildPrefix, wrappedRange } from './log-wrap'
-import { parseAll, type LogcatFields, type LogLevel } from './logcat-parse'
-import { ALL_LEVELS, filterIndices, type LogFilter } from './log-filter'
-import { relatedLogLines } from './log-match'
-import { searchMatches } from './log-search'
+import { parseAll, parseLogcatLine, type LogcatFields, type LogLevel } from '../../../shared/logcat-parse'
+import { ALL_LEVELS, filterIndices, type LogFilter } from '../../../shared/log-filter'
+import { relatedLogLines } from '../../../shared/log-match'
+import { searchMatches } from '../../../shared/log-search'
 import type { LogSite } from '../../../shared/log'
 
 /**
@@ -12,10 +12,14 @@ import type { LogSite } from '../../../shared/log'
  * 선택 연동(로그↔노드↔코드)은 M11_4~M11_5.
  */
 
-export interface LogDumpData {
-  name: string
-  lines: readonly string[]
-}
+/**
+ * 로그 표시 소스. (TODO_EXTRA C)
+ * - memory: 작은 파일 — 전체 라인을 렌더러가 보유(모든 기능 동기).
+ * - stream: 대용량 — main이 디스크 스트리밍, 렌더러는 윈도우만 보유(필터/검색/매칭은 IPC).
+ */
+export type LogDumpData =
+  | { name: string; mode: 'memory'; lines: readonly string[] }
+  | { name: string; mode: 'stream'; id: number; lineCount: number }
 
 export interface LogViewCallbacks {
   onClose: () => void
@@ -32,6 +36,16 @@ export class LogView {
   private name = ''
   private lines: readonly string[] = []
   private parsed: (LogcatFields | null)[] = []
+
+  // 스트리밍 모드(대용량 로그): main 디스크 스트리밍 + 렌더러 윈도우 캐시. (TODO_EXTRA C)
+  private streaming = false
+  private streamId = -1
+  private lineCount = 0
+  private windowCache = new Map<number, string>()
+  // 비동기 필터/검색/윈도우의 경쟁 방지 토큰(최신 요청만 반영).
+  private filterToken = 0
+  private searchToken = 0
+  private windowToken = 0
 
   /** 필터를 통과한 원본 라인 인덱스. */
   private visible: number[] = []
@@ -191,13 +205,42 @@ export class LogView {
     }
   }
 
+  /** 원본 라인 텍스트(메모리: 배열, 스트림: 윈도우 캐시). */
+  private line(i: number): string {
+    return this.streaming ? (this.windowCache.get(i) ?? '') : (this.lines[i] ?? '')
+  }
+
+  /** 원본 라인 파싱 필드(스트림은 캐시된 라인을 즉석 파싱). */
+  private fieldsFor(i: number): LogcatFields | null {
+    if (!this.streaming) return this.parsed[i] ?? null
+    const raw = this.windowCache.get(i)
+    return raw === undefined ? null : parseLogcatLine(raw)
+  }
+
+  /** 전체 라인 수(메모리/스트림 공통). */
+  private get totalLines(): number {
+    return this.streaming ? this.lineCount : this.lines.length
+  }
+
   /** 표시할 덤프를 설정한다. key가 같으면 다시 그리지 않는다. */
   setDump(key: string | null, dump: LogDumpData | null): void {
     if (this.currentKey === key) return
     this.currentKey = key
-    this.lines = dump?.lines ?? []
+    this.streaming = dump?.mode === 'stream'
+    this.windowCache = new Map()
+    if (dump?.mode === 'stream') {
+      this.streamId = dump.id
+      this.lineCount = dump.lineCount
+      this.lines = []
+      this.parsed = []
+      this.wrap = false // 스트림 모드는 wrap 미지원(라인 길이 전량 필요)
+    } else {
+      this.streamId = -1
+      this.lineCount = 0
+      this.lines = dump?.lines ?? []
+      this.parsed = dump ? parseAll(this.lines) : []
+    }
     this.name = dump?.name ?? ''
-    this.parsed = dump ? parseAll(this.lines) : []
     this.selectedLine = null
     this.related = new Set()
     this.relatedKey = null
@@ -208,7 +251,8 @@ export class LogView {
     this.matchPos = -1
     this.renderSearchCount()
     this.host.classList.toggle('is-active', Boolean(dump))
-    this.host.classList.toggle('is-wrap', this.wrap)
+    this.host.classList.toggle('is-stream', this.streaming)
+    this.host.classList.toggle('is-wrap', this.wrap && !this.streaming)
     ;(this.host.querySelector('.logview__title') as HTMLElement).textContent = this.name
     this.applyFilter()
   }
@@ -232,6 +276,19 @@ export class LogView {
     const key = file && this.currentKey ? `${this.currentKey}:${file}` : null
     if (this.relatedKey === key) return
     this.relatedKey = key
+    if (this.streaming) {
+      if (!file) {
+        this.related = new Set()
+        this.renderWindow()
+        return
+      }
+      void window.codetree.logRelated(this.streamId, [...sites], file).then((idx) => {
+        if (this.relatedKey !== key) return // 더 최신 선택이 있으면 무시
+        this.related = new Set(idx)
+        this.renderWindow()
+      })
+      return
+    }
     this.related = file ? relatedLogLines(this.lines, this.parsed, sites, file) : new Set()
     this.renderWindow()
   }
@@ -269,14 +326,36 @@ export class LogView {
     this.wrapCharsPerRow = cpr
   }
 
-  /** 필터를 적용해 가시 인덱스를 재계산하고 다시 그린다. */
+  /** 필터를 적용해 가시 인덱스를 재계산하고 다시 그린다. (스트림은 main 디스크 스캔) */
   private applyFilter(): void {
+    if (this.streaming) {
+      const f = this.filter
+      const token = ++this.filterToken
+      void window.codetree
+        .logScan(this.streamId, {
+          levels: f.levels ? [...f.levels] : null,
+          tag: f.tag,
+          text: f.text,
+          regex: f.regex
+        })
+        .then((visible) => {
+          if (token !== this.filterToken) return // 더 최신 필터가 있으면 무시
+          this.visible = visible
+          this.afterFilter()
+        })
+      return
+    }
     this.visible = filterIndices(this.lines, this.parsed, this.filter)
+    this.afterFilter()
+  }
+
+  /** 필터 결과 반영 공통 처리(메모리/스트림). */
+  private afterFilter(): void {
     this.wrapPrefix = null // 가시 집합 변경 → wrap 오프셋 재계산 필요
     this.countEl.textContent =
-      this.visible.length === this.lines.length
-        ? `${this.lines.length.toLocaleString()} 라인`
-        : `${this.visible.length.toLocaleString()} / ${this.lines.length.toLocaleString()} 라인`
+      this.visible.length === this.totalLines
+        ? `${this.totalLines.toLocaleString()} 라인`
+        : `${this.visible.length.toLocaleString()} / ${this.totalLines.toLocaleString()} 라인`
     this.body.scrollTop = 0
     this.updateMatches() // 필터 변경 시 검색 매치도 갱신
     this.renderWindow()
@@ -284,7 +363,23 @@ export class LogView {
 
   /** 검색 매치를 (현재 표시 라인 위에서) 재계산하고 카운트를 갱신한다. (M11_6) */
   private updateMatches(): void {
+    if (this.streaming) {
+      const token = ++this.searchToken
+      const p = this.searchQuery
+        ? window.codetree.logSearch(this.streamId, this.visible, this.searchQuery, this.searchRegex)
+        : Promise.resolve<number[]>([])
+      void p.then((matches) => {
+        if (token !== this.searchToken) return
+        this.matches = matches
+        this.afterMatches()
+      })
+      return
+    }
     this.matches = searchMatches(this.lines, this.visible, this.searchQuery, this.searchRegex)
+    this.afterMatches()
+  }
+
+  private afterMatches(): void {
     this.matchSet = new Set(this.matches)
     this.matchPos = this.matches.length > 0 ? 0 : -1
     this.renderSearchCount()
@@ -307,12 +402,31 @@ export class LogView {
     const originalIndex = this.matches[this.matchPos]
     const pos = this.visible.indexOf(originalIndex)
     if (pos >= 0) {
-      if (this.wrap) this.ensureWrapPrefix()
-      const offset = this.wrap && this.wrapPrefix ? this.wrapPrefix[pos] : pos * ROW_HEIGHT
+      if (this.wrap && !this.streaming) this.ensureWrapPrefix()
+      const offset =
+        this.wrap && !this.streaming && this.wrapPrefix ? this.wrapPrefix[pos] : pos * ROW_HEIGHT
       this.body.scrollTop = Math.max(0, offset - this.body.clientHeight / 2)
     }
     this.renderSearchCount()
     this.renderWindow()
+    this.emitSelect(originalIndex)
+  }
+
+  /** 라인 선택을 외부에 통지한다(스트림은 필요 시 라인을 디스크에서 가져온다). */
+  private emitSelect(originalIndex: number): void {
+    if (this.streaming) {
+      const cached = this.windowCache.get(originalIndex)
+      if (cached !== undefined) {
+        this.callbacks.onSelectLine(originalIndex, cached)
+        return
+      }
+      void window.codetree.logLines(this.streamId, [originalIndex]).then((t) => {
+        const raw = t[0] ?? ''
+        this.windowCache.set(originalIndex, raw)
+        this.callbacks.onSelectLine(originalIndex, raw)
+      })
+      return
+    }
     this.callbacks.onSelectLine(originalIndex, this.lines[originalIndex])
   }
 
@@ -321,7 +435,7 @@ export class LogView {
     const total = this.visible.length
     let start: number
     let end: number
-    if (this.wrap) {
+    if (this.wrap && !this.streaming) {
       this.ensureWrapPrefix()
       const r = wrappedRange(this.body.scrollTop, this.body.clientHeight, this.wrapPrefix!, OVERSCAN)
       start = r.start
@@ -336,10 +450,26 @@ export class LogView {
       this.windowEl.style.paddingBottom = `${Math.max(0, total - end) * ROW_HEIGHT}px`
     }
 
+    // 스트림: 보이는 구간의 미캐시 라인을 디스크에서 가져온 뒤 재렌더(채움). (TODO_EXTRA C)
+    if (this.streaming) {
+      const need: number[] = []
+      for (let i = start; i < end; i += 1) {
+        const oi = this.visible[i]
+        if (!this.windowCache.has(oi)) need.push(oi)
+      }
+      if (need.length > 0) {
+        const token = ++this.windowToken
+        void window.codetree.logLines(this.streamId, need).then((texts) => {
+          need.forEach((oi, k) => this.windowCache.set(oi, texts[k] ?? ''))
+          if (token === this.windowToken) this.renderWindow()
+        })
+      }
+    }
+
     const frag = document.createDocumentFragment()
     for (let i = start; i < end; i += 1) {
       const originalIndex = this.visible[i]
-      const fields = this.parsed[originalIndex]
+      const fields = this.fieldsFor(originalIndex)
       const row = document.createElement('div')
       row.className = fields ? `logview__row level-${fields.level}` : 'logview__row'
       if (this.related.has(originalIndex)) row.classList.add('is-related')
@@ -349,15 +479,13 @@ export class LogView {
         row.classList.add('is-match')
       }
       if (originalIndex === this.selectedLine) row.classList.add('is-selected')
-      row.addEventListener('click', () =>
-        this.callbacks.onSelectLine(originalIndex, this.lines[originalIndex])
-      )
+      row.addEventListener('click', () => this.emitSelect(originalIndex))
       const ln = document.createElement('span')
       ln.className = 'logview__ln'
       ln.textContent = String(originalIndex + 1)
       const text = document.createElement('span')
       text.className = 'logview__text'
-      text.textContent = this.lines[originalIndex]
+      text.textContent = this.line(originalIndex)
       row.append(ln, text)
       frag.appendChild(row)
     }

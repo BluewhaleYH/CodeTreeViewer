@@ -3,13 +3,14 @@
  * 단계: 2차. logcat 우선 파싱 + 일반 텍스트 폴백(결정).
  */
 
-/** 로그 파일 열기 결과(메인 → 렌더러). 대용량 스트리밍은 M11_2. */
-export interface LogOpenResult {
-  path: string
-  name: string
-  /** 파일 전체 내용(M11_2에서 스트리밍/청크로 대체 예정). */
-  content: string
-}
+/**
+ * 로그 파일 열기 결과(메인 → 렌더러). (TODO_EXTRA C)
+ * 임계값 이하: 전체 내용을 메모리로(`memory`). 초과: 디스크 스트리밍(`stream`) — 라인 수만 전달하고
+ * 표시 윈도우/필터/검색은 main이 디스크에서 처리한다.
+ */
+export type LogOpenResult =
+  | { mode: 'memory'; path: string; name: string; content: string }
+  | { mode: 'stream'; path: string; name: string; id: number; lineCount: number }
 
 /**
  * 소스의 로그 호출 위치(로그→코드 역추적용). (04 §5, M11_4)

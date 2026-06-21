@@ -62,9 +62,9 @@ if (root) {
       const activeId = store.getActiveId()
       if (activeId) store.closeLog(activeId)
     }
-    const selectLogLine = (index: number): void => {
+    const selectLogLine = (index: number, raw: string): void => {
       const activeId = store.getActiveId()
-      if (activeId) store.selectLogLine(activeId, index)
+      if (activeId) store.selectLogLine(activeId, index, raw)
     }
     const logView = new LogView(wsLog, { onClose: closeLog, onSelectLine: selectLogLine })
     const closeCode = (): void => {
@@ -204,10 +204,17 @@ if (root) {
       // 로그 분석: 열린 로그가 있으면 좌측 로그 패널 표시. (04 §2, M11_1)
       if (active && active.log) {
         wsLog.hidden = false
-        logView.setDump(`${active.id}:${active.log.path}`, {
-          name: active.log.name,
-          lines: active.log.lines
-        })
+        logView.setDump(
+          `${active.id}:${active.log.path}`,
+          active.log.source.mode === 'memory'
+            ? { name: active.log.name, mode: 'memory', lines: active.log.source.lines }
+            : {
+                name: active.log.name,
+                mode: 'stream',
+                id: active.log.source.id,
+                lineCount: active.log.source.lineCount
+              }
+        )
         logView.setSelectedLine(active.log.selectedLine)
         // 노드→로그 연동: 선택된 파일 노드와 연관된 라인 강조. (04 §7, M11_5)
         const sel = active.view.selectedNodeId
@@ -273,11 +280,17 @@ if (root) {
       if (!result) return
       let activeId = store.getActiveId()
       if (!activeId) activeId = store.addEmptyTab().id
+      // 대용량은 스트리밍 소스, 그 외는 전체 라인 메모리 적재. (TODO_EXTRA C)
+      const source =
+        result.mode === 'memory'
+          ? { mode: 'memory' as const, lines: splitLines(result.content) }
+          : { mode: 'stream' as const, id: result.id, lineCount: result.lineCount }
       store.openLog(activeId, {
         path: result.path,
         name: result.name,
-        lines: splitLines(result.content),
-        selectedLine: null
+        selectedLine: null,
+        selectedRaw: null,
+        source
       })
     }
 
