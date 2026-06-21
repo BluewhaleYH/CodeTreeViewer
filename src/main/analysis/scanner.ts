@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { extname, join, relative, sep } from 'node:path'
 import type { SourceLanguage } from '../../shared/analysis'
+import { DEFAULT_EXCLUDE_DIRS } from '../../shared/settings'
 
 /**
  * 프로젝트 폴더 재귀 스캔. (02 §3)
@@ -32,20 +33,10 @@ export interface ScanOptions {
 
 /**
  * 항상 제외하는 디렉터리(빌드 산출물/VCS/IDE/의존성). (02 §3, 추가-4)
- * 테스트 소스는 기본 포함(사용자 결정). 향후 설정으로 제외 가능.
+ * 테스트 소스는 기본 포함(사용자 결정). 설정 UI로 조정 가능. (TODO_EXTRA D)
+ * 단일 출처는 shared/settings.ts.
  */
-export const DEFAULT_EXCLUDED_DIRS = [
-  '.git',
-  '.svn',
-  '.hg',
-  '.gradle',
-  '.idea',
-  '.vscode',
-  'build',
-  'out',
-  'dist',
-  'node_modules'
-]
+export const DEFAULT_EXCLUDED_DIRS = [...DEFAULT_EXCLUDE_DIRS]
 
 const LANGUAGE_BY_EXT: Record<string, SourceLanguage> = {
   '.java': 'java',

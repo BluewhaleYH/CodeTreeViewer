@@ -41,6 +41,8 @@ export function buildAppMenu(): void {
           accelerator: 'Ctrl+Shift+T',
           click: () => emit('menu:reopen-tab')
         },
+        { type: 'separator' },
+        { label: '설정…', accelerator: 'Ctrl+,', click: () => emit('menu:settings') },
         ...(isMac ? [] : [{ type: 'separator' as const }, { role: 'quit' as const, label: '종료' }])
       ]
     }

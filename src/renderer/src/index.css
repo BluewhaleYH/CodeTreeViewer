@@ -1066,3 +1066,117 @@ body {
 .session-notice__close:hover {
   color: #ffffff;
 }
+
+/* 설정 모달. (TODO_EXTRA D) */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.settings-modal {
+  width: 460px;
+  max-width: calc(100vw - 40px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.settings-modal__title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.settings-section__title {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.settings-section__desc {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.settings-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+  margin-bottom: 10px;
+}
+
+.settings-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 9px;
+  background: var(--bg-tab);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.settings-chip__remove {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-chip__remove:hover {
+  color: var(--fg);
+}
+
+.settings-add {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-add__input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.settings-add__btn,
+.settings-reset,
+.settings-cancel,
+.settings-save {
+  background: var(--bg-tab);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.settings-spacer {
+  flex: 1;
+}
