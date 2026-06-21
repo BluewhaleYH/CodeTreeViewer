@@ -8,6 +8,7 @@ import type { FileInfo } from './analysis/extract'
 import type { ScannedFile } from './analysis/scanner'
 import { AnalysisCache, ANALYZER_VERSION, fileFingerprint } from './analysis/cache'
 import { getSessionManager } from './session/session-manager'
+import { getSettingsStore } from './settings-store'
 import { readSourceFile, saveSourceFile } from './source'
 import {
   LOG_STREAM_THRESHOLD,
@@ -22,6 +23,7 @@ import type { LogFilter } from '../shared/log-filter'
 import type { LogLevel } from '../shared/logcat-parse'
 import type { AnalysisResult } from '../shared/analysis'
 import type { PersistedTab, SessionState } from '../shared/session'
+import type { AppSettings } from '../shared/settings'
 import type { LogOpenResult, LogSite } from '../shared/log'
 import type { SourceReadResult, SourceSaveResult } from '../shared/source'
 
@@ -87,7 +89,9 @@ export function registerIpcHandlers(): void {
     'analysis:run',
     async (event, payload: AnalyzePayload): Promise<AnalysisResult> => {
       const parser = await getParser()
+      const settings = await getSettingsStore(app.getPath('userData')).load()
       const result = await analyzeProject(payload.projectPath, parser, getCache(), {
+        scan: { excludeDirs: settings.excludeDirs },
         onProgress: (progress) => {
           if (!event.sender.isDestroyed()) {
             event.sender.send('analysis:progress', { id: payload.id, progress })
@@ -227,6 +231,16 @@ export function registerIpcHandlers(): void {
     ): void => {
       getSessionManager().setTabs(payload.tabs, payload.activeIndex, payload.recentlyClosed ?? [])
     }
+  )
+
+  // 앱 설정(스캔 제외 디렉터리 등) 로드/저장. (TODO_EXTRA D)
+  ipcMain.handle('settings:load', (): Promise<AppSettings> =>
+    getSettingsStore(app.getPath('userData')).load()
+  )
+  ipcMain.handle(
+    'settings:save',
+    (_event, settings: AppSettings): Promise<AppSettings> =>
+      getSettingsStore(app.getPath('userData')).save(settings)
   )
 
   // 프로젝트 경로 존재 확인(복원 시 깨진 경로 감지). (TODO_EXTRA D)

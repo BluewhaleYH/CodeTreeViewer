@@ -4,13 +4,20 @@ import type { PersistedTab, SessionNotice, SessionState } from '../shared/sessio
 import type { UpdateNotice } from '../shared/update'
 import type { LogOpenResult, LogSite } from '../shared/log'
 import type { SourceReadResult, SourceSaveResult } from '../shared/source'
+import type { AppSettings } from '../shared/settings'
 
 export interface ProjectSelection {
   path: string
   name: string
 }
 
-export type MenuAction = 'open-project' | 'new-tab' | 'close-tab' | 'open-log' | 'reopen-tab'
+export type MenuAction =
+  | 'open-project'
+  | 'new-tab'
+  | 'close-tab'
+  | 'open-log'
+  | 'reopen-tab'
+  | 'settings'
 
 let analysisCounter = 0
 
@@ -19,7 +26,8 @@ const MENU_CHANNELS: Record<string, MenuAction> = {
   'menu:new-tab': 'new-tab',
   'menu:close-tab': 'close-tab',
   'menu:open-log': 'open-log',
-  'menu:reopen-tab': 'reopen-tab'
+  'menu:reopen-tab': 'reopen-tab',
+  'menu:settings': 'settings'
 }
 
 /**
@@ -78,6 +86,11 @@ const api = {
   /** 프로젝트 경로가 존재하는 디렉터리인지 확인(복원 시 깨진 경로 감지). (TODO_EXTRA D) */
   projectExists: (path: string): Promise<boolean> =>
     ipcRenderer.invoke('project:exists', { path }),
+
+  /** 앱 설정 로드/저장(스캔 제외 디렉터리 등). (TODO_EXTRA D) */
+  loadSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:load'),
+  saveSettings: (settings: AppSettings): Promise<AppSettings> =>
+    ipcRenderer.invoke('settings:save', settings),
 
   /** 세션 비차단 알림(손상 감지 등) 구독. 해제 함수를 반환한다. (01 §10) */
   onSessionNotice: (handler: (notice: SessionNotice) => void): (() => void) => {

@@ -3,13 +3,20 @@ import type { PersistedTab, SessionNotice, SessionState } from '../../shared/ses
 import type { UpdateNotice } from '../../shared/update'
 import type { LogOpenResult, LogSite } from '../../shared/log'
 import type { SourceReadResult, SourceSaveResult } from '../../shared/source'
+import type { AppSettings } from '../../shared/settings'
 
 export interface ProjectSelection {
   path: string
   name: string
 }
 
-export type MenuAction = 'open-project' | 'new-tab' | 'close-tab' | 'open-log' | 'reopen-tab'
+export type MenuAction =
+  | 'open-project'
+  | 'new-tab'
+  | 'close-tab'
+  | 'open-log'
+  | 'reopen-tab'
+  | 'settings'
 
 declare global {
   interface Window {
@@ -29,6 +36,8 @@ declare global {
         recentlyClosed: PersistedTab[]
       ) => Promise<void>
       projectExists: (path: string) => Promise<boolean>
+      loadSettings: () => Promise<AppSettings>
+      saveSettings: (settings: AppSettings) => Promise<AppSettings>
       onSessionNotice: (handler: (notice: SessionNotice) => void) => () => void
       onUpdateNotice: (handler: (notice: UpdateNotice) => void) => () => void
       openLogDialog: () => Promise<LogOpenResult | null>

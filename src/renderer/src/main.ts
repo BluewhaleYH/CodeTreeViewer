@@ -8,6 +8,7 @@ import { buildSearchIndex, focusTargetId } from './search/search-index'
 import { diffGraphs } from './graph/graph-diff'
 import { LogView } from './log/log-view'
 import { EditorView } from './editor/editor-view'
+import { SettingsView } from './settings/settings-view'
 import { splitLines } from './log/log-lines'
 import { fileNodeId } from '../../shared/graph'
 
@@ -274,6 +275,18 @@ if (root) {
       if (tab?.projectPath) void analyze(tab.id, tab.projectPath)
     }
 
+    // 설정 모달(스캔 제외 디렉터리 등). 저장 시 열린 프로젝트를 재분석한다. (TODO_EXTRA D)
+    const settingsView = new SettingsView((settings) => {
+      void window.codetree.saveSettings(settings).then(() => {
+        for (const tab of store.getTabs()) {
+          if (tab.projectPath && !tab.pathMissing) void analyze(tab.id, tab.projectPath)
+        }
+      })
+    })
+    const openSettings = async (): Promise<void> => {
+      settingsView.open(await window.codetree.loadSettings())
+    }
+
     // 로그 덤프 열기: 활성 탭에 로드(없으면 새 탭). (04 §2, M11_1)
     const openLog = async (): Promise<void> => {
       const result = await window.codetree.openLogDialog()
@@ -321,6 +334,7 @@ if (root) {
       else if (action === 'open-log') void openLog()
       else if (action === 'new-tab') store.addEmptyTab()
       else if (action === 'reopen-tab') reopenClosed()
+      else if (action === 'settings') void openSettings()
       else if (action === 'close-tab') {
         const active = store.getActive()
         if (!active) return
