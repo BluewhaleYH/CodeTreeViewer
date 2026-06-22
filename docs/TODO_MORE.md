@@ -10,3 +10,7 @@
 - [x] **그래프 줌 속도 상향** (#79) — `wheelSensitivity` 0.2 → 0.5(상수 `WHEEL_SENSITIVITY`, 3개 cytoscape 인스턴스 공통). 2.5× 빠른 줌.
 - [x] **우상단 팝업 겹침** (#79) — 우측 정보 패널(정보/후보/영향/비교/역추적)을 `.overlay-right` 세로 스택으로 모아 겹침 해소.
 - [x] **코드 뷰 너비 리사이즈** (#79) — 코드 패널 좌측 경계에 `.ws-resizer` 스플리터(pointer 드래그, 280px~70% clamp). 패널과 함께 표시/숨김.
+
+## 도구 / 테스트 — 2026-06-22 요청
+
+- [x] **릴리스 없이 테스트 빌드** (#80) — `.github/workflows/test-build.yml`(workflow_dispatch). 수동 실행 시 Windows 포터블 zip을 Actions 아티팩트로 업로드 → 로컬 Node 없이 다운로드·실행. 자동 실행 없음(쿼터 미소진).
