@@ -59,9 +59,10 @@ export function buildFileGraph(
     }
   }
 
-  // 2) 인덱스 구축: FQN(타입) → 파일, 패키지 → 파일 목록.
+  // 2) 인덱스 구축: FQN(타입) → 파일, 패키지 → 파일 목록, 단순명 → 선언 파일 목록.
   const typeIndex = new Map<string, string>()
   const packageIndex = new Map<string, string[]>()
+  const classNameIndex = new Map<string, string[]>()
   for (const info of infos) {
     const pkg = info.packageName ?? ''
     const rel = info.file.relativePath
@@ -75,12 +76,15 @@ export function buildFileGraph(
     for (const name of names) {
       const fqn = pkg ? `${pkg}.${name}` : name
       if (!typeIndex.has(fqn)) typeIndex.set(fqn, rel)
+      // 단순명 → 선언 파일(상속 해석용, 단순명만 있을 때). (TODO_MORE)
+      pushTo(classNameIndex, name, rel)
     }
   }
 
-  // 2-1) 함수 호출 해석용 인덱스: 이름 → 함수 노드 id(전역/파일별). (M10_1)
+  // 2-1) 함수 호출 해석용 인덱스: 이름 → 함수 노드 id(전역/파일별) + 함수노드 → 파일. (M10_1, TODO_MORE)
   const fnGlobalByName = new Map<string, string[]>()
   const fnFileByName = new Map<string, Map<string, string[]>>()
+  const fnFileById = new Map<string, string>()
   for (const info of infos) {
     const rel = info.file.relativePath
     const perFile = new Map<string, string[]>()
@@ -89,6 +93,7 @@ export function buildFileGraph(
       const id = functionNodeId(rel, fn.name)
       pushTo(fnGlobalByName, fn.name, id)
       pushTo(perFile, fn.name, id)
+      fnFileById.set(id, rel)
     }
   }
 
@@ -104,8 +109,26 @@ export function buildFileGraph(
       const callerId = functionNodeId(rel, fn.name)
       for (const call of fn.calls) {
         const calleeId = resolveCall(call.name, perFile, fnGlobalByName)
-        if (calleeId) builder.addEdge('function-call', callerId, calleeId, call.line)
+        if (!calleeId) continue
+        builder.addEdge('function-call', callerId, calleeId, call.line)
+        // 교차 파일 호출은 파일 수준 엣지로도 집계(메인 관계도 표시). (TODO_MORE)
+        const calleeFile = fnFileById.get(calleeId)
+        if (calleeFile && calleeFile !== rel) {
+          builder.addEdge('file-call', fileNodeId(rel), fileNodeId(calleeFile), call.line)
+        }
       }
+    }
+  }
+
+  // 2-2b) 상속/구현 해석 → inheritance 엣지(부모=하위 클래스 파일, 자식=상위 타입 파일). (TODO_MORE)
+  //  - 정규화명(.)이면 FQN 인덱스. 단순명이면 같은 패키지 우선, 없으면 프로젝트 전역 유일일 때만.
+  for (const info of infos) {
+    const rel = info.file.relativePath
+    const pkg = info.packageName ?? ''
+    const fromId = fileNodeId(rel)
+    for (const sup of info.supertypes) {
+      const target = resolveSupertype(sup.name, pkg, typeIndex, classNameIndex)
+      if (target && target !== rel) builder.addEdge('inheritance', fromId, fileNodeId(target), sup.line)
     }
   }
 
@@ -235,6 +258,25 @@ function resolveCall(
   if (inFile) return inFile.length === 1 ? inFile[0] : null
   const global = globalByName.get(name)
   return global && global.length === 1 ? global[0] : null
+}
+
+/**
+ * 상위 타입명을 선언 파일로 해석(보수적). (TODO_MORE)
+ * 1) FQN(점 포함) → 타입 인덱스.
+ * 2) 단순명 → 같은 패키지(pkg.Name) 우선, 없으면 프로젝트 전역에서 동일 단순명이 유일할 때만.
+ * 모호(다수)하면 null → 엣지 생성 안 함(오탐 방지).
+ */
+function resolveSupertype(
+  name: string,
+  pkg: string,
+  typeIndex: Map<string, string>,
+  classNameIndex: Map<string, string[]>
+): string | null {
+  if (name.includes('.')) return typeIndex.get(name) ?? null
+  const samePkg = typeIndex.get(pkg ? `${pkg}.${name}` : name)
+  if (samePkg) return samePkg
+  const candidates = classNameIndex.get(name)
+  return candidates && candidates.length === 1 ? candidates[0] : null
 }
 
 function resolveImport(

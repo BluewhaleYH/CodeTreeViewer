@@ -102,6 +102,22 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     style: { 'line-color': '#6b8cce', 'target-arrow-color': '#6b8cce', 'line-style': 'dashed' }
   },
   {
+    // 상속(inheritance) 엣지: 흰 속빈 삼각형 화살표(UML 상속 관례). (TODO_MORE)
+    selector: 'edge[type="inheritance"]',
+    style: {
+      'line-color': '#cdd3da',
+      'target-arrow-color': '#cdd3da',
+      'target-arrow-shape': 'triangle-tee',
+      'arrow-scale': 0.9,
+      width: 1.5
+    }
+  },
+  {
+    // 파일 간 호출(file-call) 집계 엣지: 호출 색 점선. (TODO_MORE)
+    selector: 'edge[type="file-call"]',
+    style: { 'line-color': '#6b8cce', 'target-arrow-color': '#6b8cce', 'line-style': 'dashed' }
+  },
+  {
     // JNI 경계 엣지: 보라색 굵은 점선(Java ↔ 네이티브). (M14_1)
     selector: 'edge[type="jni-boundary"]',
     style: {

@@ -7,8 +7,17 @@ import type { SourceLanguage } from './analysis'
 
 export type NodeKind = 'file' | 'function'
 
-/** MVP: file-dependency. function-call은 2차(M10). jni-boundary는 추후(M14). (02 §4.2) */
-export type EdgeType = 'file-dependency' | 'function-call' | 'jni-boundary'
+/**
+ * 엣지 종류. 파일 수준(관계도/트리에 표시): file-dependency(import) · inheritance(상속) ·
+ * file-call(파일 간 함수 호출 집계). 함수 수준(역추적 전용): function-call. 그 외: jni-boundary.
+ * (02 §4.2, TODO_MORE)
+ */
+export type EdgeType =
+  | 'file-dependency'
+  | 'inheritance'
+  | 'file-call'
+  | 'function-call'
+  | 'jni-boundary'
 
 export interface GraphNode {
   id: string

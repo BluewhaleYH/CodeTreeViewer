@@ -415,3 +415,66 @@ describe('영역(Domain) 부여 (M4_5)', () => {
     expect(summary.domainCount).toBe(2) // app, core
   })
 })
+
+describe('상속/파일 호출 엣지 (TODO_MORE)', () => {
+  it('같은 패키지 extends도 inheritance 엣지로 만든다(import 없음)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-inh-'))
+    await write('com/a/A.java', 'package com.a;\nclass A extends A2 {}')
+    await write('com/a/A2.java', 'package com.a;\nclass A2 {}')
+    const { graph } = await runAnalysis(root, parser)
+    const inh = graph.edges.filter((e) => e.type === 'inheritance')
+    expect(inh).toHaveLength(1)
+    expect(inh[0].from).toBe(fileNodeId('com/a/A.java')) // 하위 클래스
+    expect(inh[0].to).toBe(fileNodeId('com/a/A2.java')) // 상위 타입
+  })
+
+  it('implements도 inheritance 엣지', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-inh-'))
+    await write('p/Impl.java', 'package p;\nclass Impl implements Iface {}')
+    await write('p/Iface.java', 'package p;\ninterface Iface {}')
+    const { graph } = await runAnalysis(root, parser)
+    expect(
+      graph.edges.some(
+        (e) =>
+          e.type === 'inheritance' &&
+          e.from === fileNodeId('p/Impl.java') &&
+          e.to === fileNodeId('p/Iface.java')
+      )
+    ).toBe(true)
+  })
+
+  it('Kotlin 상속(: Base())도 엣지', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-inh-'))
+    await write('a/Sub.kt', 'package a\nclass Sub : Base()')
+    await write('a/Base.kt', 'package a\nopen class Base')
+    const { graph } = await runAnalysis(root, parser)
+    expect(
+      graph.edges.some(
+        (e) =>
+          e.type === 'inheritance' &&
+          e.from === fileNodeId('a/Sub.kt') &&
+          e.to === fileNodeId('a/Base.kt')
+      )
+    ).toBe(true)
+  })
+
+  it('교차 파일 함수 호출을 file-call 엣지로 집계한다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-call-'))
+    await write('p/A.java', 'package p;\nclass A { void run() { helper(); } }')
+    await write('p/B.java', 'package p;\nclass B { void helper() {} }')
+    const { graph } = await runAnalysis(root, parser)
+    const fc = graph.edges.filter((e) => e.type === 'file-call')
+    expect(fc).toHaveLength(1)
+    expect(fc[0].from).toBe(fileNodeId('p/A.java'))
+    expect(fc[0].to).toBe(fileNodeId('p/B.java'))
+  })
+
+  it('이름이 모호하면(동명이인 다수) 상속/호출 엣지를 만들지 않는다', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-amb-'))
+    await write('x/C.java', 'package x;\nclass C extends Dup {}')
+    await write('y/Dup.java', 'package y;\nclass Dup {}')
+    await write('z/Dup.java', 'package z;\nclass Dup {}')
+    const { graph } = await runAnalysis(root, parser)
+    expect(graph.edges.some((e) => e.type === 'inheritance')).toBe(false) // 단순명 Dup 다수 → 미해석
+  })
+})
