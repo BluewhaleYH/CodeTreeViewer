@@ -13,6 +13,9 @@ import { buildNeighborAdjacency, expandableNodeIds } from './expand'
 import { assignDomainColors } from './domain-colors'
 import { backtraceSubgraph, buildCallerAdjacency, expandableCallers } from './backtrace'
 
+/** Ctrl+휠 줌 감도(높을수록 한 번에 더 크게 확대/축소). cytoscape 기본 1.0. (TODO_MORE) */
+const WHEEL_SENSITIVITY = 0.5
+
 /**
  * 그래프 캔버스(Cytoscape) 생명주기 + 상호작용. (03 §2~§5, §8)
  * 상호작용(D17): 한 번 클릭 = 선택 + 직접 부모/자식(1-홉) 표시. 더블클릭 = 관계도 더 깊게 확장 / 트리 접기·펼치기.
@@ -213,7 +216,7 @@ export class GraphView {
       elements: compareElements(before, after, this.domainColors),
       style: GRAPH_STYLE,
       layout: layoutFor('graph'),
-      wheelSensitivity: 0.2,
+      wheelSensitivity: WHEEL_SENSITIVITY,
       minZoom: 0.05,
       maxZoom: 4
     })
@@ -240,7 +243,7 @@ export class GraphView {
       elements: backtraceElements(backtraceSubgraph(this.displayed, graph), this.domainColors),
       style: GRAPH_STYLE,
       layout: backtraceLayout,
-      wheelSensitivity: 0.2,
+      wheelSensitivity: WHEEL_SENSITIVITY,
       minZoom: 0.05,
       maxZoom: 4
     })
@@ -355,7 +358,7 @@ export class GraphView {
       elements: toCytoscapeElements(view.graph, this.domainColors),
       style: GRAPH_STYLE,
       layout: layoutFor(mode),
-      wheelSensitivity: 0.2,
+      wheelSensitivity: WHEEL_SENSITIVITY,
       minZoom: 0.05,
       maxZoom: 4
     })

@@ -26,6 +26,7 @@ if (root) {
           <div class="ws-search" id="ws-search"></div>
           <div class="session-notice" id="session-notice" hidden></div>
         </div>
+        <div class="ws-resizer" id="ws-code-resizer" title="드래그해서 코드 패널 너비 조절" hidden></div>
         <div class="ws-code" id="ws-code" hidden></div>
       </main>
       <button class="theme-toggle" id="theme-toggle" title="다크/라이트 전환"></button>
@@ -38,9 +39,31 @@ if (root) {
   const wsGraph = root.querySelector<HTMLElement>('#ws-graph')
   const wsOverlay = root.querySelector<HTMLElement>('#ws-overlay')
   const wsSearch = root.querySelector<HTMLElement>('#ws-search')
+  const wsCodeResizer = root.querySelector<HTMLElement>('#ws-code-resizer')
 
-  if (tabbar && wsLog && wsCode && wsGraph && wsOverlay && wsSearch) {
+  if (tabbar && wsLog && wsCode && wsGraph && wsOverlay && wsSearch && wsCodeResizer) {
     const store = new TabStore()
+
+    // 코드 패널 너비 드래그 리사이즈(우측 경계). (TODO_MORE)
+    const startCodeResize = (startEvent: PointerEvent): void => {
+      startEvent.preventDefault()
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      const onMove = (e: PointerEvent): void => {
+        const width = window.innerWidth - e.clientX
+        const clamped = Math.max(280, Math.min(width, Math.round(window.innerWidth * 0.7)))
+        wsCode.style.width = `${clamped}px`
+      }
+      const onUp = (): void => {
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+    }
+    wsCodeResizer.addEventListener('pointerdown', startCodeResize)
     const selectNode = (nodeId: string | null): void => {
       const activeId = store.getActiveId()
       if (activeId) store.setSelectedNode(activeId, nodeId)
@@ -228,6 +251,7 @@ if (root) {
       // 코드 편집기(우측): 노드/로그 후보 소스. (06 §2, M12_1)
       if (active && active.codeView) {
         wsCode.hidden = false
+        wsCodeResizer.hidden = false
         editorView.setFile(`${active.id}:${active.codeView.file}:${active.codeView.line}`, {
           file: active.codeView.file,
           line: active.codeView.line,
@@ -235,6 +259,7 @@ if (root) {
         })
       } else {
         wsCode.hidden = true
+        wsCodeResizer.hidden = true
         editorView.setFile(null, null)
       }
       // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
