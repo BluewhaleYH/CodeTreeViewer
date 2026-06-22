@@ -1,0 +1,38 @@
+name: test-build
+
+# 수동 실행 전용 테스트 빌드. (TODO_MORE)
+# 릴리스를 만들지 않고, 현재 브랜치(기본 main)로 Windows 포터블 zip을 빌드해
+# Actions 아티팩트로 올린다. 로컬 Node/빌드 환경 없이 다운로드해 실행할 수 있다.
+# workflow_dispatch 전용 → 자동 실행/아티팩트 쿼터 소진 없음.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '빌드할 브랜치/커밋 (기본: main)'
+        required: false
+        default: 'main'
+
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+jobs:
+  windows-portable:
+    name: Windows 포터블 zip
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build portable zip
+        run: npm run build:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CodeTreeViewer-win-portable
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 5
