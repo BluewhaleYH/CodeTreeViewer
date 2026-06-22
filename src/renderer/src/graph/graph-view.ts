@@ -1,9 +1,8 @@
-import cytoscape, {
-  type Core,
-  type LayoutOptions,
-  type NodeSingular,
-  type StylesheetStyle
-} from 'cytoscape'
+import cytoscape, { type Core, type LayoutOptions, type StylesheetStyle } from 'cytoscape'
+import dagre from 'cytoscape-dagre'
+
+// 방향성 계층 레이아웃(dagre)을 1회 등록. 관계도가 의존 방향(위→아래)을 반영하도록. (TODO_MORE)
+cytoscape.use(dagre)
 import type { CodeGraph } from '../../../shared/graph'
 import type { TabState, ViewMode } from '../tabs/tab-store'
 import { backtraceElements, compareElements, toCytoscapeElements } from './to-cytoscape'
@@ -137,14 +136,16 @@ const backtraceLayout: LayoutOptions = {
   animate: false
 }
 
-const radialLayout: LayoutOptions = {
-  name: 'concentric',
-  concentric: (node: NodeSingular) => node.degree(false),
-  levelWidth: () => 1,
-  minNodeSpacing: 28,
-  spacingFactor: 1.1,
+// 관계도: 방향성 계층(dagre). 부모(의존하는 쪽)가 위, 자식이 아래로 흐른다. (TODO_MORE)
+const graphLayout = {
+  name: 'dagre',
+  rankDir: 'TB',
+  nodeSep: 26,
+  rankSep: 48,
+  fit: true,
+  padding: 30,
   animate: false
-}
+} as unknown as LayoutOptions
 
 const treeLayout: LayoutOptions = {
   name: 'breadthfirst',
@@ -155,7 +156,7 @@ const treeLayout: LayoutOptions = {
 }
 
 function layoutFor(mode: ViewMode): LayoutOptions {
-  return mode === 'tree' ? treeLayout : radialLayout
+  return mode === 'tree' ? treeLayout : graphLayout
 }
 
 export class GraphView {
@@ -467,7 +468,7 @@ export class GraphView {
         cy.getElementById(e.id).length === 0
     )
     cy.add(toCytoscapeElements({ nodes: addedNodes, edges: newEdges }, this.domainColors))
-    cy.layout(radialLayout).run()
+    cy.layout(layoutFor(this.mode)).run()
     this.markExpandable()
     this.applySelectedStyle()
   }
