@@ -61,27 +61,31 @@ export function renderOverlay(
     host.className = 'ws-overlay ws-overlay--corner'
     host.appendChild(renderStatsPanel(active))
     const graph = active.analysis.graph
+    // 우상단 정보 패널들을 세로 스택으로 모아 겹침을 방지한다. (TODO_MORE)
+    const right = document.createElement('div')
+    right.className = 'overlay-right'
     // 역추적 모드: 전용 패널(함수명 + 호출처 수 + 종료). 그 외: 토글/범례/정보패널. (M10_2)
     if (active.view.backtrace && graph) {
-      host.appendChild(renderBacktracePanel(graph, active.view.backtrace, actions))
+      right.appendChild(renderBacktracePanel(graph, active.view.backtrace, actions))
     } else {
       host.appendChild(renderViewToggle(active, store))
       if (graph) host.appendChild(renderLegend(graph))
       if (graph && active.view.selectedNodeId) {
         const info = renderInfoPanel(graph, active.view.selectedNodeId, actions)
-        if (info) host.appendChild(info)
+        if (info) right.appendChild(info)
       }
     }
     // 로그→코드 역추적 후보 패널(선택 라인 있을 때). (04 §5, M11_4)
     if (active.log && active.log.selectedLine !== null) {
-      host.appendChild(renderCandidatePanel(active, active.log.selectedLine, actions))
+      right.appendChild(renderCandidatePanel(active, active.log.selectedLine, actions))
     }
     // 재분석 영향 범위 패널. (06 §5, M12_4)
     if (active.impact) {
-      host.appendChild(renderImpactPanel(active.impact, actions))
+      right.appendChild(renderImpactPanel(active.impact, actions))
     }
     // 전/후 비교 패널. (03, 06 §5, M14_3)
-    host.appendChild(renderComparePanel(active, actions))
+    right.appendChild(renderComparePanel(active, actions))
+    host.appendChild(right)
     return
   }
 

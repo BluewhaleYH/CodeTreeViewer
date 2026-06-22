@@ -378,6 +378,24 @@ body {
   display: none;
 }
 
+/* 코드 패널 너비 조절 스플리터. (TODO_MORE) */
+.ws-resizer {
+  flex: 0 0 auto;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--border);
+}
+
+.ws-resizer:hover {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.ws-resizer[hidden] {
+  display: none;
+}
+
 .editorview {
   display: flex;
   flex-direction: column;
@@ -644,18 +662,31 @@ body {
 }
 
 /* 노드 정보 패널 (우측) */
-.info-panel {
+/* 우상단 정보 패널 세로 스택(겹침 방지). (TODO_MORE) */
+.overlay-right {
   position: absolute;
   top: 56px;
   right: 12px;
-  width: 260px;
-  max-height: calc(100% - 80px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  max-height: calc(100% - 68px);
   overflow-y: auto;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.overlay-right > * {
+  pointer-events: auto;
+}
+
+.info-panel {
+  width: 260px;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel-bg);
-  pointer-events: auto;
 }
 
 .info-panel__title {
