@@ -29,6 +29,7 @@ if (root) {
         <div class="ws-resizer" id="ws-code-resizer" title="드래그해서 코드 패널 너비 조절" hidden></div>
         <div class="ws-code" id="ws-code" hidden></div>
       </main>
+      <button class="code-toggle" id="code-toggle" title="코드 패널 켜기/끄기">&lt;/&gt;</button>
       <button class="theme-toggle" id="theme-toggle" title="다크/라이트 전환"></button>
     </div>
   `
@@ -43,6 +44,9 @@ if (root) {
 
   if (tabbar && wsLog && wsCode && wsGraph && wsOverlay && wsSearch && wsCodeResizer) {
     const store = new TabStore()
+
+    // 코드 패널 표시 여부(토글 버튼 + 노드/후보 클릭으로 제어). (TODO_MORE)
+    let codePanelOpen = false
 
     // 코드 패널 너비 드래그 리사이즈(우측 경계). (TODO_MORE)
     const startCodeResize = (startEvent: PointerEvent): void => {
@@ -68,7 +72,16 @@ if (root) {
       const activeId = store.getActiveId()
       if (activeId) store.setSelectedNode(activeId, nodeId)
     }
-    const graphView = new GraphView(wsGraph, selectNode)
+    // 그래프 노드 클릭: 선택 + 해당 파일/함수 소스를 코드 패널에 띄운다. (TODO_MORE)
+    const onGraphSelect = (nodeId: string | null): void => {
+      selectNode(nodeId)
+      if (!nodeId) return
+      const node = store.getActive()?.analysis.graph?.nodes.find((n) => n.id === nodeId)
+      if (node && !node.external && node.path) {
+        void openSource(node.path, node.line ?? 1, false) // 선택은 이미 위에서 처리
+      }
+    }
+    const graphView = new GraphView(wsGraph, onGraphSelect)
     const startBacktrace = (functionId: string): void => {
       const activeId = store.getActiveId()
       if (activeId) store.setBacktrace(activeId, functionId)
@@ -150,12 +163,17 @@ if (root) {
       }
     })
 
-    // 소스를 편집기로 연다(노드→소스 / 로그 후보→코드). 그래프 노드 포커스(3중 연동). (06 §2, M12_1)
-    const openSource = async (file: string, line: number): Promise<void> => {
+    // 소스를 편집기로 연다(노드→소스 / 로그 후보→코드). 코드 패널을 자동으로 보이게 한다. (06 §2, M12_1, TODO_MORE)
+    const openSource = async (
+      file: string,
+      line: number,
+      focusFileNode = true
+    ): Promise<void> => {
       const activeId = store.getActiveId()
       const active = store.getActive()
       if (!activeId || !active?.projectPath) return
-      selectNode(fileNodeId(file))
+      if (focusFileNode) selectNode(fileNodeId(file))
+      codePanelOpen = true // 소스를 열면 코드 패널 표시. (TODO_MORE)
       const result = await window.codetree.readSource(active.projectPath, file)
       if (result !== null) {
         store.setCodeView(activeId, {
@@ -165,10 +183,19 @@ if (root) {
           baseMtime: result.mtime,
           dirty: false
         })
+      } else {
+        render() // 파일을 못 읽어도 패널은 토글되었으니 갱신
       }
     }
 
     const isCapture = window.codetree.captureMode
+
+    // 코드 패널 토글 버튼. (TODO_MORE)
+    const codeToggle = root.querySelector<HTMLButtonElement>('#code-toggle')
+    codeToggle?.addEventListener('click', () => {
+      codePanelOpen = !codePanelOpen
+      render()
+    })
 
     // 테마(다크/라이트) 전환. localStorage에 영속(렌더러 전용 UI 선호). (03 §9, M14_4)
     const themeToggle = root.querySelector<HTMLButtonElement>('#theme-toggle')
@@ -248,20 +275,25 @@ if (root) {
         wsLog.hidden = true
         logView.setDump(null, null)
       }
-      // 코드 편집기(우측): 노드/로그 후보 소스. (06 §2, M12_1)
-      if (active && active.codeView) {
+      // 코드 편집기(우측): 토글 ON일 때 표시. 열린 소스가 있으면 그 파일, 없으면 빈 편집기. (TODO_MORE)
+      if (codePanelOpen) {
         wsCode.hidden = false
         wsCodeResizer.hidden = false
-        editorView.setFile(`${active.id}:${active.codeView.file}:${active.codeView.line}`, {
-          file: active.codeView.file,
-          line: active.codeView.line,
-          content: active.codeView.content
-        })
+        if (active && active.codeView) {
+          editorView.setFile(`${active.id}:${active.codeView.file}:${active.codeView.line}`, {
+            file: active.codeView.file,
+            line: active.codeView.line,
+            content: active.codeView.content
+          })
+        } else {
+          editorView.setFile(null, null)
+        }
       } else {
         wsCode.hidden = true
         wsCodeResizer.hidden = true
         editorView.setFile(null, null)
       }
+      if (codeToggle) codeToggle.classList.toggle('is-active', codePanelOpen)
       // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
       if (active && active.analysis.status === 'done' && active.analysis.graph) {
         wsSearch.style.display = 'block'

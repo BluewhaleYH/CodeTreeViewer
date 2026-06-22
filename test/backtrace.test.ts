@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildCallerAdjacency,
   directCallers,
+  callersUpToDepth,
   expandableCallers,
   backtraceSubgraph
 } from '../src/renderer/src/graph/backtrace'
@@ -48,6 +49,22 @@ describe('backtrace — 호출처 역추적 (M10_2)', () => {
     const adj = buildCallerAdjacency(graph)
     expect(directCallers('c', adj).sort()).toEqual(['a', 'b'])
     expect(directCallers('a', adj)).toEqual([]) // 진입점
+  })
+
+  it('callersUpToDepth는 지정 단계까지 호출처 체인을 모은다 (TODO_MORE)', () => {
+    const adj = buildCallerAdjacency(graph)
+    expect([...callersUpToDepth('d', adj, 1)].sort()).toEqual(['c', 'd'])
+    expect([...callersUpToDepth('d', adj, 2)].sort()).toEqual(['a', 'b', 'c', 'd'])
+    expect([...callersUpToDepth('d', adj, 6)].sort()).toEqual(['a', 'b', 'c', 'd']) // 체인 소진
+  })
+
+  it('callersUpToDepth는 사이클이 있어도 종료한다 (TODO_MORE)', () => {
+    const cyc: CodeGraph = {
+      nodes: [fn('x'), fn('y')],
+      edges: [callEdge('x', 'y'), callEdge('y', 'x')]
+    }
+    const adj = buildCallerAdjacency(cyc)
+    expect([...callersUpToDepth('x', adj, 10)].sort()).toEqual(['x', 'y'])
   })
 
   it('expandableCallers는 아직 표시되지 않은 호출처를 가진 노드를 표시한다', () => {
