@@ -50,7 +50,10 @@ function graphSummaryFields(
     functionNodeCount: graph.nodes.filter((n) => n.kind === 'function').length,
     externalNodeCount: graph.nodes.filter((n) => n.external).length,
     domainCount: domains.size,
-    edgeCount: graph.edges.filter((e) => e.type === 'file-dependency').length,
+    // 메인 관계도에 표시되는 파일 수준 엣지(import 의존 + 상속 + 파일 간 호출 집계). (TODO_MORE)
+    edgeCount: graph.edges.filter(
+      (e) => e.type === 'file-dependency' || e.type === 'inheritance' || e.type === 'file-call'
+    ).length,
     callEdgeCount: graph.edges.filter((e) => e.type === 'function-call').length,
     jniEdgeCount: graph.edges.filter((e) => e.type === 'jni-boundary').length
   }
@@ -101,6 +104,7 @@ async function analyzeScanned(
           packageName: null,
           topLevelNames: [],
           imports: [],
+          supertypes: [],
           functions: [],
           logSites: [],
           nativeMethods: [],
@@ -169,6 +173,7 @@ export async function reanalyzeFile(
       packageName: null,
       topLevelNames: [],
       imports: [],
+      supertypes: [],
       functions: [],
       logSites: [],
       nativeMethods: [],

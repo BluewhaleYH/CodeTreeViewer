@@ -113,6 +113,22 @@ export function buildDemoGraph(): CodeGraph {
       to: fileNodeId('native/jni/native-lib.cpp'),
       line: null
     },
+    // 상속(데모): LoginViewModel이 Models의 베이스를 상속. (TODO_MORE)
+    {
+      id: 'inheritance:vm->models',
+      type: 'inheritance' as const,
+      from: fileNodeId('app/src/main/kotlin/LoginViewModel.kt'),
+      to: fileNodeId('core/src/main/kotlin/Models.kt'),
+      line: null
+    },
+    // 파일 간 호출 집계(데모): Repository가 Logger를 호출(import 없이). (TODO_MORE)
+    {
+      id: 'file-call:repo->logger',
+      type: 'file-call' as const,
+      from: fileNodeId('core/src/main/kotlin/Repository.kt'),
+      to: fileNodeId('util/src/main/java/Logger.java'),
+      line: null
+    },
     // 호출: login·onRetry → load, load → get, save → get
     call(vm, 'login', repo, 'load'),
     call(vm, 'onRetry', repo, 'load'),
@@ -134,7 +150,7 @@ export const DEMO_SUMMARY: AnalysisSummary = {
   functionNodeCount: 5,
   externalNodeCount: 1,
   domainCount: 4,
-  edgeCount: 8,
+  edgeCount: 10,
   jniEdgeCount: 1,
   callEdgeCount: 4,
   failures: []

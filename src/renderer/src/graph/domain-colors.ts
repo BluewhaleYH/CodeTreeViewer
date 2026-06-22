@@ -6,18 +6,8 @@ import type { CodeGraph } from '../../../shared/graph'
  * 정렬된 도메인 순서로 결정적 배정 → 동일 프로젝트는 항상 같은 색.
  */
 
-const PALETTE = [
-  '#4a9eff',
-  '#e2b341',
-  '#5fbf76',
-  '#c678dd',
-  '#e06c75',
-  '#56b6c2',
-  '#d19a66',
-  '#98c379',
-  '#61afef',
-  '#be7cf0'
-]
+// 영역 색은 가짓수를 적게 유지한다(많으면 구분이 흐려짐). 초과 도메인은 순환. (TODO_MORE)
+const PALETTE = ['#4a9eff', '#e2b341', '#5fbf76', '#c678dd', '#e06c75']
 
 export const DEFAULT_NODE_COLOR = '#4a9eff'
 export const EXTERNAL_NODE_COLOR = '#555a60'

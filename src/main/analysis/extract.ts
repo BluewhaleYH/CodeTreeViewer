@@ -30,11 +30,20 @@ export interface FunctionDef {
   calls: CallRef[]
 }
 
+/** 상속/구현 참조 1건(상위 타입 이름 + 위치). 단순명 또는 정규화명. (TODO_MORE) */
+export interface SupertypeRef {
+  /** 상위 타입 이름(extends/implements 대상). 단순명 또는 FQN. */
+  name: string
+  line: number
+}
+
 export interface FileInfo {
   file: ScannedFile
   packageName: string | null
   topLevelNames: string[]
   imports: ImportRef[]
+  /** extends/implements/상위타입 참조(상속 엣지 해석은 dependency-graph에서). (TODO_MORE) */
+  supertypes: SupertypeRef[]
   /** 함수/메서드 정의(검색·라벨용, 호출 관계 아님). (02 §1, §4.1, D7) */
   functions: FunctionDef[]
   /** 소스 내 로그 호출 위치(로그→코드 역추적용). (04 §5, M11_4) */
@@ -102,6 +111,58 @@ export function extractFileInfo(tree: Parser.Tree, file: ScannedFile): FileInfo 
   }
 }
 
+/** 타입 노드에서 기반 타입명(제네릭은 베이스)을 뽑는다. (TODO_MORE) */
+function javaTypeName(node: Node): string | null {
+  if (node.type === 'type_identifier' || node.type === 'scoped_type_identifier') return node.text
+  if (node.type === 'generic_type') {
+    const base = node.namedChildren[0]
+    return base ? javaTypeName(base) : null
+  }
+  return null
+}
+
+/** Java: extends/implements/interface extends 절에서 상위 타입명을 수집한다. (TODO_MORE) */
+function extractJavaSupertypes(root: Node): SupertypeRef[] {
+  const out: SupertypeRef[] = []
+  for (const clause of root.descendantsOfType([
+    'superclass',
+    'super_interfaces',
+    'extends_interfaces'
+  ])) {
+    const line = clause.startPosition.row + 1
+    const typeNodes =
+      clause.type === 'superclass'
+        ? clause.namedChildren
+        : (clause.descendantsOfType('type_list')[0]?.namedChildren ?? clause.namedChildren)
+    for (const t of typeNodes) {
+      const name = javaTypeName(t)
+      if (name) out.push({ name, line })
+    }
+  }
+  return out
+}
+
+/** Kotlin: 클래스 선언의 위임 지정자(`: Base()/Iface`)에서 상위 타입명(단순명)을 수집한다. (TODO_MORE) */
+function extractKotlinSupertypes(root: Node): SupertypeRef[] {
+  const out: SupertypeRef[] = []
+  for (const spec of root.descendantsOfType('delegation_specifier')) {
+    const tids = spec.descendantsOfType('type_identifier')
+    if (tids.length > 0) out.push({ name: tids[tids.length - 1].text, line: spec.startPosition.row + 1 })
+  }
+  return out
+}
+
+/** C++: base_class_clause에서 베이스 클래스명을 수집한다. (C는 상속 없음 → 빈 배열) (TODO_MORE) */
+function extractCppSupertypes(root: Node): SupertypeRef[] {
+  const out: SupertypeRef[] = []
+  for (const clause of root.descendantsOfType('base_class_clause')) {
+    for (const t of clause.descendantsOfType('type_identifier')) {
+      out.push({ name: t.text, line: clause.startPosition.row + 1 })
+    }
+  }
+  return out
+}
+
 /**
  * C/C++: #include 지시문을 파일 의존성 import로 추출한다. (02 §2, §3, M13)
  * `#include "..."` → include-local(경로 해석), `#include <...>` → include-system(외부).
@@ -132,6 +193,7 @@ function extractCFamily(root: Node, file: ScannedFile): FileInfo {
     packageName: null,
     topLevelNames: [],
     imports,
+    supertypes: file.language === 'cpp' ? extractCppSupertypes(root) : [],
     functions: [],
     logSites: [],
     nativeMethods: [],
@@ -226,6 +288,7 @@ function extractJava(root: Node, file: ScannedFile): FileInfo {
     packageName,
     topLevelNames,
     imports,
+    supertypes: extractJavaSupertypes(root),
     functions,
     logSites: extractJavaLogSites(root, file),
     nativeMethods: extractJavaNativeMethods(root, packageName),
@@ -289,6 +352,7 @@ function extractKotlin(root: Node, file: ScannedFile): FileInfo {
     packageName,
     topLevelNames,
     imports,
+    supertypes: extractKotlinSupertypes(root),
     functions,
     logSites: extractKotlinLogSites(root, file),
     nativeMethods: [],
