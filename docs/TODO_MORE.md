@@ -13,4 +13,5 @@
 
 ## 도구 / 테스트 — 2026-06-22 요청
 
-- [x] **릴리스 없이 테스트 빌드** (#80) — `.github/workflows/test-build.yml`(workflow_dispatch). 수동 실행 시 Windows 포터블 zip을 Actions 아티팩트로 업로드 → 로컬 Node 없이 다운로드·실행. 자동 실행 없음(쿼터 미소진).
+- [x] **릴리스 없이 테스트 빌드** (#80) — `.github/workflows/test-build.yml`(workflow_dispatch). 수동 실행 시 Windows 포터블 zip을 Actions 아티팩트로 업로드. (#82에서 프리릴리스 방식으로 교체)
+- [x] **로그인 없이 받는 테스트 빌드** (#82) — Actions 아티팩트는 로그인 필요 → 고정 태그 `test-build`의 **프리릴리스**(nsis exe + 포터블 zip)로 발행하도록 교체. 공개 다운로드 가능, `latest` 아님(자동 업데이트 영향 없음), 매 빌드마다 게시물 갱신.

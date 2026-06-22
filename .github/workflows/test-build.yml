@@ -1,9 +1,10 @@
 name: test-build
 
 # 수동 실행 전용 테스트 빌드. (TODO_MORE)
-# 릴리스를 만들지 않고, 현재 브랜치(기본 main)로 Windows 포터블 zip을 빌드해
-# Actions 아티팩트로 올린다. 로컬 Node/빌드 환경 없이 다운로드해 실행할 수 있다.
-# workflow_dispatch 전용 → 자동 실행/아티팩트 쿼터 소진 없음.
+# 정식 릴리스를 만들지 않고, Windows 설치본(.exe) + 포터블 zip을 빌드해
+# 고정 태그 `test-build`의 **프리릴리스**로 발행한다.
+# → 로그인 없이 공개 다운로드 가능, "latest" 아님(기존 설치본 자동 업데이트 영향 없음).
+# workflow_dispatch 전용 → 자동 실행 없음.
 on:
   workflow_dispatch:
     inputs:
@@ -12,12 +13,15 @@ on:
         required: false
         default: 'main'
 
+permissions:
+  contents: write
+
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
 jobs:
-  windows-portable:
-    name: Windows 포터블 zip
+  windows-prerelease:
+    name: Windows 테스트 프리릴리스
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,14 +32,26 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # 테스트 빌드라 퍼블리시하지 않는다(--publish never → CI 자동 퍼블리시/GH_TOKEN 요구 회피).
-      - name: Build portable zip
+      # 설치본(nsis .exe) + 포터블 zip 생성(퍼블리시는 gh로 직접 → --publish never).
+      - name: Build Windows (nsis + zip)
         run: |
           npm run build
-          npx electron-builder --win zip --publish never
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CodeTreeViewer-win-portable
-          path: dist/*.zip
-          if-no-files-found: error
-          retention-days: 5
+          npx electron-builder --win nsis zip --publish never
+      # 고정 태그 test-build 프리릴리스를 갱신(이전 것 삭제 후 재생성).
+      - name: Publish test pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release delete test-build --yes --cleanup-tag || true
+          gh release create test-build \
+            --target "${{ inputs.ref }}" \
+            --prerelease \
+            --latest=false \
+            --title "테스트 빌드 (최신 ${{ inputs.ref }})" \
+            --notes "로그인 없이 받을 수 있는 테스트용 프리릴리스입니다. 정식 릴리스가 아니며, 빌드할 때마다 이 게시물이 갱신됩니다.
+          - 설치본: \`CodeTreeViewer-Setup-*.exe\`
+          - 포터블: \`CodeTreeViewer-*-win.zip\`(압축 풀고 CodeTreeViewer.exe 실행)
+          무서명이라 SmartScreen 경고 시 '추가 정보 → 실행'." \
+            dist/*.exe dist/*-win.zip
+          echo "릴리스 URL:"; gh release view test-build --json url --jq .url
