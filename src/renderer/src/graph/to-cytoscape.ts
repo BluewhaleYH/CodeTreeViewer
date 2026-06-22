@@ -53,7 +53,11 @@ export function backtraceElements(
   const nodes: ElementDefinition[] = graph.nodes.map((node) => ({
     data: {
       id: node.id,
-      label: node.name,
+      // 함수 노드는 "함수명\n소속 파일명"으로 어느 파일의 함수인지 함께 보여준다. (TODO_MORE)
+      label:
+        node.kind === 'function'
+          ? `${node.name}\n${node.path.split('/').pop() ?? node.path}`
+          : node.name,
       kind: node.kind,
       domain: node.domain ?? '',
       external: node.external ? 'true' : 'false',

@@ -40,6 +40,33 @@
   cursor: pointer;
 }
 
+/* 코드 패널 토글(테마 버튼 왼쪽). (TODO_MORE) */
+.code-toggle {
+  position: fixed;
+  top: 6px;
+  right: 42px;
+  z-index: 50;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}
+
+.code-toggle:hover {
+  color: var(--fg);
+}
+
+.code-toggle.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .theme-toggle:hover {
   filter: brightness(1.1);
 }

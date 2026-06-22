@@ -26,6 +26,33 @@ export function directCallers(
   return callerAdjacency.get(functionId) ?? []
 }
 
+/**
+ * functionId에서 호출처 체인을 depth 단계까지 따라가 표시할 노드 집합을 만든다(BFS). (TODO_MORE)
+ * depth=1이면 직접 호출처까지. 사이클은 visited로 차단.
+ */
+export function callersUpToDepth(
+  functionId: string,
+  callerAdjacency: Map<string, string[]>,
+  depth: number
+): Set<string> {
+  const displayed = new Set<string>([functionId])
+  let frontier = [functionId]
+  for (let d = 0; d < depth; d += 1) {
+    const next: string[] = []
+    for (const id of frontier) {
+      for (const caller of callerAdjacency.get(id) ?? []) {
+        if (!displayed.has(caller)) {
+          displayed.add(caller)
+          next.push(caller)
+        }
+      }
+    }
+    if (next.length === 0) break
+    frontier = next
+  }
+  return displayed
+}
+
 /** displayed 중 아직 표시되지 않은 호출처를 가진(=더 확장 가능한) 함수 id 집합. */
 export function expandableCallers(
   displayed: ReadonlySet<string>,

@@ -10,7 +10,15 @@ import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
 import { DEFAULT_MAX_INITIAL_NODES, selectInitialView } from './initial-view'
 import { buildNeighborAdjacency, expandableNodeIds } from './expand'
 import { assignDomainColors } from './domain-colors'
-import { backtraceSubgraph, buildCallerAdjacency, expandableCallers } from './backtrace'
+import {
+  backtraceSubgraph,
+  buildCallerAdjacency,
+  callersUpToDepth,
+  expandableCallers
+} from './backtrace'
+
+/** 역추적 진입 시 초기 표시 단계(호출처 체인 깊이). 이후 노드 클릭으로 더 확장. (TODO_MORE) */
+const BACKTRACE_INITIAL_DEPTH = 6
 
 /** Ctrl+휠 줌 감도(높을수록 한 번에 더 크게 확대/축소). cytoscape 기본 1.0. (TODO_MORE) */
 const WHEEL_SENSITIVITY = 1.0
@@ -29,12 +37,20 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     style: {
       'background-color': 'data(color)',
       label: 'data(label)',
-      'font-size': 7,
-      color: '#9aa0a6',
+      'font-size': 8,
+      color: '#cdd3da',
       width: 12,
       height: 12,
       'text-valign': 'bottom',
       'text-halign': 'center',
+      'text-margin-y': 2,
+      // 라벨 겹침 완화: 줄바꿈(\n)/긴 이름 줄임 + 어두운 반투명 배경으로 가독성 확보. (TODO_MORE)
+      'text-wrap': 'wrap',
+      'text-max-width': '96px',
+      'text-background-color': '#1e1e1e',
+      'text-background-opacity': 0.7,
+      'text-background-padding': '2px',
+      'text-background-shape': 'roundrectangle',
       'min-zoomed-font-size': 7
     }
   },
@@ -132,7 +148,7 @@ const GRAPH_STYLE: StylesheetStyle[] = [
 const backtraceLayout: LayoutOptions = {
   name: 'breadthfirst',
   directed: true,
-  spacingFactor: 1.1,
+  spacingFactor: 1.7, // 라벨(함수명+파일명) 겹침 완화. (TODO_MORE)
   animate: false
 }
 
@@ -140,8 +156,8 @@ const backtraceLayout: LayoutOptions = {
 const graphLayout = {
   name: 'dagre',
   rankDir: 'TB',
-  nodeSep: 26,
-  rankSep: 48,
+  nodeSep: 50, // 라벨 겹침 완화(같은 단계 가로 간격). (TODO_MORE)
+  rankSep: 70,
   fit: true,
   padding: 30,
   animate: false
@@ -150,7 +166,7 @@ const graphLayout = {
 const treeLayout: LayoutOptions = {
   name: 'breadthfirst',
   directed: true,
-  spacingFactor: 1.0,
+  spacingFactor: 1.5, // 라벨 겹침 완화. (TODO_MORE)
   grid: false,
   animate: false
 }
@@ -252,8 +268,8 @@ export class GraphView {
     this.domainColors = assignDomainColors(graph)
     this.callerAdjacency = buildCallerAdjacency(graph)
 
-    const callers = this.callerAdjacency.get(functionId) ?? []
-    this.displayed = new Set([functionId, ...callers])
+    // 초기에 호출처 체인을 여러 단계까지 표시(이후 노드 클릭으로 더 확장). (TODO_MORE)
+    this.displayed = callersUpToDepth(functionId, this.callerAdjacency, BACKTRACE_INITIAL_DEPTH)
 
     const cy = cytoscape({
       container: this.host,
@@ -327,7 +343,7 @@ export class GraphView {
     const target = selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : null
     this.selectedId = target
     this.applySelectedStyle()
-    if (target) this.centerOn(target)
+    if (target) this.fitToSelection(target)
   }
 
   /** 단일 노드(파일/외부)를 드러낸다(검색 포커스 등). */
@@ -348,11 +364,14 @@ export class GraphView {
     this.markExpandable()
   }
 
-  private centerOn(id: string): void {
+  /** 선택 노드 + 직접 이웃이 화면의 약 80%를 채우도록 맞춘다(가장자리에 여백). (TODO_MORE) */
+  private fitToSelection(id: string): void {
     const cy = this.cy
     if (!cy) return
     const node = cy.getElementById(id)
-    if (node.length > 0) cy.animate({ center: { eles: node } }, { duration: 200 })
+    if (node.length === 0) return
+    const padding = Math.round(Math.min(cy.width(), cy.height()) * 0.1)
+    cy.animate({ fit: { eles: node.closedNeighborhood(), padding } }, { duration: 220 })
   }
 
   private draw(graph: CodeGraph, mode: ViewMode, selectedNodeId: string | null): void {
@@ -409,6 +428,8 @@ export class GraphView {
         if (this.mode === 'tree') this.toggleCollapse(id)
         else this.reveal(id, 2)
       }
+      // 클릭한 노드+이웃이 화면의 ~80%를 채우도록. (TODO_MORE)
+      this.fitToSelection(id)
     })
 
     cy.on('tap', (event) => {
