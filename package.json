@@ -26,6 +26,8 @@
   },
   "dependencies": {
     "cytoscape": "^3.34.0",
+    "cytoscape-dagre": "^4.0.0",
+    "dagre": "^0.8.5",
     "electron-updater": "^6.8.9",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.20.8"
@@ -34,6 +36,8 @@
     "@eslint/js": "^9.13.0",
     "@playwright/test": "^1.61.0",
     "@types/cytoscape": "^3.21.9",
+    "@types/cytoscape-dagre": "^2.3.4",
+    "@types/dagre": "^0.7.54",
     "@types/node": "^22.7.0",
     "cross-env": "^7.0.3",
     "electron": "^33.0.0",
