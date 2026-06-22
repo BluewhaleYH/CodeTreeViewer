@@ -14,7 +14,7 @@ import { assignDomainColors } from './domain-colors'
 import { backtraceSubgraph, buildCallerAdjacency, expandableCallers } from './backtrace'
 
 /** Ctrl+휠 줌 감도(높을수록 한 번에 더 크게 확대/축소). cytoscape 기본 1.0. (TODO_MORE) */
-const WHEEL_SENSITIVITY = 0.5
+const WHEEL_SENSITIVITY = 1.0
 
 /**
  * 그래프 캔버스(Cytoscape) 생명주기 + 상호작용. (03 §2~§5, §8)
