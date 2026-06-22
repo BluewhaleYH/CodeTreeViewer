@@ -28,8 +28,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # 테스트 빌드라 퍼블리시하지 않는다(--publish never → CI 자동 퍼블리시/GH_TOKEN 요구 회피).
       - name: Build portable zip
-        run: npm run build:win
+        run: |
+          npm run build
+          npx electron-builder --win zip --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: CodeTreeViewer-win-portable
