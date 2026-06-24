@@ -609,6 +609,21 @@ body {
   z-index: 5;
 }
 
+/* 별도 "보기 내 검색" 영역(우상단, 코드/테마 토글 버튼 좌측). (TODO_MORE) */
+.ws-search-view {
+  position: absolute;
+  top: 12px;
+  right: 96px;
+  width: 240px;
+  z-index: 5;
+}
+
+/* 보기 내 검색은 메인 검색과 시각적으로 구분(점선 테두리 + 강조 라벨 느낌). */
+.searchbar--scoped .search__box {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
 .search__box {
   display: flex;
   align-items: center;

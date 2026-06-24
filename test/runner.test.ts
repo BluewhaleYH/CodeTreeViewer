@@ -88,6 +88,19 @@ describe('runAnalysis — 스캔→파싱 오케스트레이션 (M3_3)', () => {
     expect(result.contentFingerprint).toBe(await contentFingerprint(result.files))
   })
 
+  it('C/C++ 함수 정의·호출을 추출해 function-call 엣지를 만든다 (TODO_MORE)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
+    await write('native/a.cpp', 'void callee() {}\nvoid caller() {\n  callee();\n}\n')
+
+    const { graph } = await runAnalysis(root, parser)
+    const fns = graph.nodes.filter((n) => n.kind === 'function').map((n) => n.name)
+    expect(fns.sort()).toEqual(['callee', 'caller'])
+    const calls = graph.edges.filter((e) => e.type === 'function-call')
+    expect(calls.length).toBe(1)
+    expect(calls[0].id).toContain('caller->')
+    expect(calls[0].id).toContain('->')
+  })
+
   it('빈 프로젝트도 안전하게 처리한다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
     const { summary } = await runAnalysis(root, parser)

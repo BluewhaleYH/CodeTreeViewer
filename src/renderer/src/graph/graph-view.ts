@@ -74,7 +74,7 @@ const GRAPH_STYLE: StylesheetStyle[] = [
     selector: 'node.selected',
     style: { 'border-width': 3, 'border-color': '#ffffff', 'border-style': 'solid' }
   },
-  { selector: '.dimmed', style: { opacity: 0.16 } },
+  { selector: '.dimmed', style: { opacity: 0.08 } },
   {
     // 재분석 영향(추가/변경) 노드 강조. (06 §5, M12_4)
     selector: 'node.impacted',
@@ -151,6 +151,10 @@ const backtraceLayout: LayoutOptions = {
   name: 'breadthfirst',
   directed: true,
   spacingFactor: 1.7, // 라벨(함수명+파일명) 겹침 완화. (TODO_MORE)
+  // 역추적은 체인 전체(선택 노드 → 위로 거슬러 올라가는 호출처들)가 한눈에 보이도록 전체 fit.
+  // (선택 노드만 줌하면 위쪽 호출처 체인이 화면 밖으로 잘려 '자매 노드 없음'을 확인하기 어려움.) (TODO_MORE)
+  fit: true,
+  padding: 40,
   animate: false
 }
 
@@ -312,8 +316,8 @@ export class GraphView {
     })
     this.markBacktraceExpandable()
     cy.getElementById(rootId).addClass('selected') // 마지막 노드 강조(유일한 리프)
-    // 레이아웃 완료 후 선택 노드로 줌. (TODO_MORE)
-    this.runLayoutThenFocus(cy, backtraceLayout, () => rootId)
+    // 체인 전체가 보이도록 레이아웃 자체의 fit:true를 사용(선택 노드만 줌하지 않음). (TODO_MORE)
+    cy.layout(backtraceLayout).run()
   }
 
   /** 노드의 직접 호출처(1-홉)를 드러낸다(점진 확장). (M10_2) */
@@ -446,20 +450,6 @@ export class GraphView {
     // - 없으면 전체 그래프를 보이게 맞추되, ingoing이 가장 많은 노드를 시작 기준으로 강조.
     const layout = cy.layout(layoutFor(mode))
     layout.one('layoutstop', () => this.applyInitialFocus(view.graph))
-    layout.run()
-  }
-
-  /** 레이아웃을 실행하고 완료(layoutstop) 후 포커스 노드로 ~80% 줌한다. (역추적 등) (TODO_MORE) */
-  private runLayoutThenFocus(
-    cy: Core,
-    layoutOptions: LayoutOptions,
-    focusId: () => string | null
-  ): void {
-    const layout = cy.layout(layoutOptions)
-    layout.one('layoutstop', () => {
-      const focus = focusId()
-      if (focus) this.fitToSelection(focus)
-    })
     layout.run()
   }
 
