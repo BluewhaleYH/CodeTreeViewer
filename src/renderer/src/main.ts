@@ -86,7 +86,13 @@ if (root) {
         void openSource(node.path, node.line ?? 1, false) // 선택은 이미 위에서 처리
       }
     }
-    const graphView = new GraphView(wsGraph, onGraphSelect)
+    // 역추적 모드 노드 클릭: 선택/모드를 바꾸지 않고 그 노드의 소스를 코드 패널에 연다. (TODO_MORE)
+    // 함수 노드면 정의 라인으로, 파일 노드면 파일 첫 줄로 이동한다.
+    const onOpenSourceNode = (nodeId: string): void => {
+      const node = store.getActive()?.analysis.graph?.nodes.find((n) => n.id === nodeId)
+      if (node && !node.external && node.path) void openSource(node.path, node.line ?? 1, false)
+    }
+    const graphView = new GraphView(wsGraph, onGraphSelect, undefined, onOpenSourceNode)
     const startBacktrace = (functionId: string): void => {
       const activeId = store.getActiveId()
       if (activeId) store.setBacktrace(activeId, functionId)
@@ -100,6 +106,8 @@ if (root) {
       if (entry.kind === 'function') startBacktrace(entry.id)
       else selectNode(focusTargetId(entry))
     })
+    // "보기 내" 검색 범위: 현재 그래프에 표시 중인 노드로 한정(중첩 검색). (TODO_MORE)
+    searchView.setScopeProvider(() => graphView.getDisplayedIds())
     const closeLog = (): void => {
       const activeId = store.getActiveId()
       if (activeId) store.closeLog(activeId)

@@ -1,4 +1,4 @@
-import type { SearchEntry } from './search-index'
+import { focusTargetId, type SearchEntry } from './search-index'
 import { DEFAULT_SEARCH_OPTIONS, searchEntries, type SearchOptions } from './search'
 import { SearchHistory } from './search-history'
 
@@ -16,6 +16,9 @@ export class SearchView {
   private index: readonly SearchEntry[] = []
   private contextKey: string | null = null
   private readonly history = new SearchHistory()
+  // "보기 내" 검색: 현재 그래프에 표시 중인 노드로 결과를 한정한다. (TODO_MORE)
+  private scopeToView = false
+  private scopeProvider: (() => ReadonlySet<string>) | null = null
 
   private readonly input: HTMLInputElement
   private readonly results: HTMLElement
@@ -33,12 +36,20 @@ export class SearchView {
           <label><input type="checkbox" data-opt="exact" /> 정확</label>
           <label><input type="checkbox" data-opt="includePath" /> 경로</label>
           <label><input type="checkbox" data-opt="fuzzy" /> 퍼지</label>
+          <label title="현재 그래프에 보이는 노드 안에서만 검색(중첩)"><input type="checkbox" data-scope="view" /> 보기 내</label>
         </div>
       </div>
       <div class="search__results"></div>
     `
     this.input = this.host.querySelector('.search__input') as HTMLInputElement
     this.results = this.host.querySelector('.search__results') as HTMLElement
+    ;(this.host.querySelector('input[data-scope="view"]') as HTMLInputElement).addEventListener(
+      'change',
+      (e) => {
+        this.scopeToView = (e.target as HTMLInputElement).checked
+        this.renderResults()
+      }
+    )
 
     this.input.addEventListener('input', () => {
       this.query = this.input.value
@@ -66,6 +77,11 @@ export class SearchView {
   seedHistory(queries: string[]): void {
     ;[...queries].reverse().forEach((q) => this.history.add(q))
     this.renderResults()
+  }
+
+  /** "보기 내" 검색이 참조할, 현재 표시 중인 노드 id 집합 공급자. (TODO_MORE) */
+  setScopeProvider(provider: () => ReadonlySet<string>): void {
+    this.scopeProvider = provider
   }
 
   /** 검색 입력칸으로 포커스를 이동하고 전체 선택한다(Ctrl+F). (TODO_EXTRA D-단축키) */
@@ -121,7 +137,7 @@ export class SearchView {
       return
     }
 
-    const matches = searchEntries(this.index, this.query, this.options)
+    const matches = this.scopedEntries(searchEntries(this.index, this.query, this.options))
     this.results.classList.add('is-open')
 
     if (matches.length === 0) {
@@ -162,5 +178,16 @@ export class SearchView {
       more.textContent = `…외 ${matches.length - MAX_RESULTS}개`
       this.results.appendChild(more)
     }
+  }
+
+  /**
+   * "보기 내"가 켜져 있으면 현재 표시 중인 노드로 결과를 한정한다. (TODO_MORE)
+   * 함수 항목은 소속 파일 노드가 보일 때(또는 그 함수 노드 자체가 보일 때) 포함한다.
+   */
+  private scopedEntries(matches: readonly SearchEntry[]): readonly SearchEntry[] {
+    if (!this.scopeToView || !this.scopeProvider) return matches
+    const scope = this.scopeProvider()
+    if (scope.size === 0) return matches
+    return matches.filter((e) => scope.has(e.id) || scope.has(focusTargetId(e)))
   }
 }
