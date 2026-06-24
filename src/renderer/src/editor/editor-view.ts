@@ -1,8 +1,10 @@
 // 전체 'monaco-editor'(모든 언어/언어서비스 포함, ~8MB) 대신 에디터 코어 API만 import. (TODO_EXTRA C)
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
-// 구문 강조에 필요한 java/kotlin 문법(Monarch)만 선택 등록.
+// 구문 강조에 필요한 java/kotlin/c/cpp 문법(Monarch)만 선택 등록.
 import 'monaco-editor/esm/vs/basic-languages/java/java.contribution'
 import 'monaco-editor/esm/vs/basic-languages/kotlin/kotlin.contribution'
+// C/C++ 문법: cpp.contribution이 'c'와 'cpp' 언어를 함께 등록한다. (.cc/.cpp/.h 등) (TODO_MORE)
+import 'monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 
 /**
@@ -17,8 +19,12 @@ self.MonacoEnvironment = {
 }
 
 function languageFor(file: string): string {
-  if (file.endsWith('.kt') || file.endsWith('.kts')) return 'kotlin'
-  if (file.endsWith('.java')) return 'java'
+  const lower = file.toLowerCase()
+  if (lower.endsWith('.kt') || lower.endsWith('.kts')) return 'kotlin'
+  if (lower.endsWith('.java')) return 'java'
+  // C/C++: 스캐너(LANGUAGE_BY_EXT)와 동일한 확장자 집합. .c만 'c', 나머지 헤더/구현은 'cpp'. (M13, TODO_MORE)
+  if (lower.endsWith('.c')) return 'c'
+  if (/\.(cpp|cc|cxx|c\+\+|hpp|hh|hxx|h\+\+|h)$/.test(lower)) return 'cpp'
   return 'plaintext'
 }
 

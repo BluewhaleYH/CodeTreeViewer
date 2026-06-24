@@ -18,6 +18,10 @@ export interface TabContentActions {
   backtrace: (functionId: string) => void
   /** 역추적을 종료하고 파일 그래프로 돌아간다. (M10_2) */
   exitBacktrace: () => void
+  /** 파일을 중심으로 그래프/트리를 다시 그린다(포커스). (TODO_MORE) */
+  focusFile: (nodeId: string) => void
+  /** 포커스를 해제하고 전체 그래프로 돌아간다. (TODO_MORE) */
+  exitFocus: () => void
   /** 로그→코드 후보를 선택해 해당 소스 노드로 이동한다. (04 §5, M11_4) */
   openCandidate: (site: LogSite) => void
   /** 노드의 소스를 편집기로 연다. (06 §2, M12_1) */
@@ -74,6 +78,10 @@ export function renderOverlay(
     } else {
       host.appendChild(renderViewToggle(active, store))
       if (graph) host.appendChild(renderLegend(graph))
+      // 포커스 모드: 중심 파일 표시 + 전체 그래프로 돌아가기. (TODO_MORE)
+      if (graph && active.view.focus) {
+        right.appendChild(renderFocusPanel(graph, active.view.focus, actions))
+      }
       if (graph && active.view.selectedNodeId) {
         const info = renderInfoPanel(graph, active.view.selectedNodeId, actions)
         if (info) right.appendChild(info)
@@ -143,13 +151,19 @@ function renderInfoPanel(
     open.className = 'info-panel__open'
     open.textContent = '소스 열기'
     open.addEventListener('click', () => actions.openSource(node.path, node.line ?? 1))
+    // 파일 노드 포커스: 이 파일을 중심으로 그래프/트리를 다시 그림. (TODO_MORE)
+    const focus = document.createElement('button')
+    focus.className = 'info-panel__open'
+    focus.textContent = '이 파일 포커스'
+    focus.title = '이 파일을 중심으로 관계도/트리를 다시 그리기'
+    focus.addEventListener('click', () => actions.focusFile(node.id))
     // 파일 노드 역추적: 이 파일을 의존/호출하는 쪽을 depth만큼 거슬러 표시. (TODO_MORE)
     const bt = document.createElement('button')
     bt.className = 'info-panel__open'
     bt.textContent = '이 파일 역추적'
     bt.title = '이 파일을 의존/호출하는 쪽을 거슬러 올라가기'
     bt.addEventListener('click', () => actions.backtrace(node.id))
-    actionsRow.append(open, bt)
+    actionsRow.append(open, focus, bt)
     panel.appendChild(actionsRow)
   }
 
@@ -214,6 +228,33 @@ function renderBacktracePanel(
   exit.className = 'backtrace-panel__exit'
   exit.textContent = '← 파일 그래프로'
   exit.addEventListener('click', () => actions.exitBacktrace())
+
+  panel.append(title, sub, exit)
+  return panel
+}
+
+/** 포커스 패널: 중심 파일명 + 전체 그래프로 돌아가기. (TODO_MORE) */
+function renderFocusPanel(
+  graph: CodeGraph,
+  focusId: string,
+  actions: TabContentActions
+): HTMLElement {
+  const node = graph.nodes.find((n) => n.id === focusId)
+  const panel = document.createElement('div')
+  panel.className = 'info-panel focus-panel'
+
+  const title = document.createElement('div')
+  title.className = 'info-panel__title'
+  title.textContent = `포커스: ${node?.name ?? focusId}`
+
+  const sub = document.createElement('div')
+  sub.className = 'backtrace-panel__sub muted'
+  sub.textContent = '이 파일 중심으로 표시 중 · 노드를 클릭해 더 펼치기'
+
+  const exit = document.createElement('button')
+  exit.className = 'backtrace-panel__exit'
+  exit.textContent = '← 전체 그래프로'
+  exit.addEventListener('click', () => actions.exitFocus())
 
   panel.append(title, sub, exit)
   return panel

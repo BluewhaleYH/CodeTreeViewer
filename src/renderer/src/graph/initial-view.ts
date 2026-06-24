@@ -23,6 +23,59 @@ export interface InitialView {
   totalRenderable: number
 }
 
+/**
+ * 포커스 뷰 선택(검색에서 파일을 고르면 그 파일을 중심으로 다시 그리기). (TODO_MORE)
+ * 중심 노드에서 **무방향(의존/피의존 양방향)** BFS로 가까운 렌더 노드(파일+외부)를
+ * maxNodes까지 모은다. 같은 거리(depth)의 노드는 어느 파일이든 모두 포함한다.
+ * (A.java의 함수를 B.java가 호출하면 B.java도 file-call 엣지로 이웃이 되어 포함된다.)
+ * function 노드는 렌더 대상이 아니므로 제외한다.
+ */
+export function selectFocusView(
+  full: CodeGraph,
+  focusId: string,
+  maxNodes: number = DEFAULT_MAX_INITIAL_NODES
+): CodeGraph {
+  const renderNodes = full.nodes.filter((node) => node.kind !== 'function')
+  const renderable = new Set(renderNodes.map((n) => n.id))
+  if (!renderable.has(focusId)) {
+    // 중심이 렌더 대상이 아니면(함수 등) 빈 그래프 → 호출부에서 일반 뷰로 폴백.
+    return { nodes: [], edges: [] }
+  }
+  // 무방향 인접(렌더 노드 사이 엣지만).
+  const adjacency = new Map<string, string[]>()
+  const link = (a: string, b: string): void => {
+    const arr = adjacency.get(a) ?? []
+    arr.push(b)
+    adjacency.set(a, arr)
+  }
+  for (const e of full.edges) {
+    if (renderable.has(e.from) && renderable.has(e.to)) {
+      link(e.from, e.to)
+      link(e.to, e.from)
+    }
+  }
+  // 중심에서 거리순(BFS)으로 maxNodes까지. 가까운 거리부터 채우며 상한을 넘지 않는다.
+  const selected = new Set<string>([focusId])
+  let frontier = [focusId]
+  while (frontier.length > 0 && selected.size < maxNodes) {
+    const next: string[] = []
+    for (const id of frontier) {
+      for (const nb of adjacency.get(id) ?? []) {
+        if (!selected.has(nb)) {
+          selected.add(nb)
+          next.push(nb)
+          if (selected.size >= maxNodes) break
+        }
+      }
+      if (selected.size >= maxNodes) break
+    }
+    frontier = next
+  }
+  const nodes = renderNodes.filter((n) => selected.has(n.id))
+  const edges = full.edges.filter((e) => selected.has(e.from) && selected.has(e.to))
+  return { nodes, edges }
+}
+
 export function selectInitialView(
   full: CodeGraph,
   maxNodes: number = DEFAULT_MAX_INITIAL_NODES

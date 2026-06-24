@@ -7,7 +7,7 @@ import type { CodeGraph, EdgeType } from '../../../shared/graph'
 import type { TabState, ViewMode } from '../tabs/tab-store'
 import { backtraceElements, compareElements, toCytoscapeElements } from './to-cytoscape'
 import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
-import { DEFAULT_MAX_INITIAL_NODES, selectInitialView } from './initial-view'
+import { DEFAULT_MAX_INITIAL_NODES, selectFocusView, selectInitialView } from './initial-view'
 import { buildNeighborAdjacency, expandableNodeIds } from './expand'
 import { assignDomainColors } from './domain-colors'
 import {
@@ -246,6 +246,17 @@ export class GraphView {
       this.drawBacktrace(graph, tab.view.backtrace)
       return
     }
+    // 포커스 모드: 검색에서 고른 파일을 중심으로 그래프/트리를 다시 그린다. (TODO_MORE)
+    if (tab.view.focus) {
+      const key = `${tab.id}:focus:${tab.view.focus}:${tab.view.mode}`
+      if (this.currentKey === key && this.cy && this.fullGraph === graph) {
+        this.syncSelection(tab.view.selectedNodeId)
+        return
+      }
+      this.currentKey = key
+      this.drawFocus(graph, tab.view.focus, tab.view.mode, tab.view.selectedNodeId)
+      return
+    }
     const key = `${tab.id}:${tab.view.mode}`
     // 같은 뷰 + 같은 그래프: 선택만 반영. 재분석 등으로 그래프가 바뀌면 다시 그린다. (M12_3)
     if (this.currentKey === key && this.cy && this.fullGraph === graph) {
@@ -411,6 +422,60 @@ export class GraphView {
     if (node.length === 0) return
     const padding = Math.round(Math.min(cy.width(), cy.height()) * 0.1)
     cy.animate({ fit: { eles: node.closedNeighborhood(), padding } }, { duration: 220 })
+  }
+
+  /**
+   * 포커스 뷰를 그린다. 중심 파일에서 양방향(의존/피의존)으로 가까운 노드를 모아
+   * 그 파일을 화면 중앙에 두고 다시 그린다. 이후 노드 클릭으로 더 확장된다. (TODO_MORE)
+   * 같은 거리의 노드는 어느 파일이든 모두 포함된다(교차 파일 호출처도 표시).
+   */
+  private drawFocus(
+    graph: CodeGraph,
+    focusId: string,
+    mode: ViewMode,
+    selectedNodeId: string | null
+  ): void {
+    this.destroyCy()
+    this.host.style.display = 'block'
+    this.backtraceId = null
+    this.impactKey = null
+    this.mode = mode
+    this.collapsed.clear()
+    this.fullGraph = graph
+    this.neighborAdjacency = buildNeighborAdjacency(graph)
+    this.domainColors = assignDomainColors(graph)
+
+    const view = selectFocusView(graph, focusId, this.maxInitialNodes)
+    if (view.nodes.length === 0) {
+      // 중심이 렌더 노드가 아니면(예: 함수) 일반 뷰로 폴백.
+      this.draw(graph, mode, selectedNodeId)
+      return
+    }
+    this.displayed = new Set(view.nodes.map((n) => n.id))
+    this.childAdjacency = buildChildAdjacency(view)
+
+    const cy = cytoscape({
+      container: this.host,
+      elements: toCytoscapeElements(view, this.domainColors),
+      style: GRAPH_STYLE,
+      wheelSensitivity: WHEEL_SENSITIVITY,
+      minZoom: 0.05,
+      maxZoom: 4
+    })
+    this.cy = cy
+
+    this.registerTapHandlers()
+    if (mode === 'graph') this.markExpandable()
+
+    // 선택은 중심 파일(없으면 그대로). 선택 강조 + 비이웃 흐림.
+    this.selectedId =
+      selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : focusId
+    this.applySelectedStyle()
+
+    // 레이아웃 완료 후 중심 파일로 ~80% 줌(중앙 배치).
+    const layout = cy.layout(layoutFor(mode))
+    layout.one('layoutstop', () => this.fitToSelection(focusId))
+    layout.run()
   }
 
   private draw(graph: CodeGraph, mode: ViewMode, selectedNodeId: string | null): void {

@@ -20,6 +20,11 @@ export interface TabViewState {
    * 전환 탐색 상태이므로 세션에 영속하지 않는다.
    */
   backtrace: string | null
+  /**
+   * 포커스 중인 파일 노드 id(검색에서 파일을 고르면 그 파일 중심으로 다시 그림). null이면 일반 뷰.
+   * 전환 탐색 상태이므로 세션에 영속하지 않는다. (TODO_MORE)
+   */
+  focus: string | null
   /** 전/후 비교 모드 활성 여부(스냅샷 vs 현재). 전환 상태(미영속). (03, 06 §5, M14_3) */
   compare: boolean
 }
@@ -48,9 +53,7 @@ export interface TabLogState {
   /**
    * 로그 데이터 소스. memory=전체 라인 보유, stream=대용량 디스크 스트리밍(라인 수만). (TODO_EXTRA C)
    */
-  source:
-    | { mode: 'memory'; lines: string[] }
-    | { mode: 'stream'; id: number; lineCount: number }
+  source: { mode: 'memory'; lines: string[] } | { mode: 'stream'; id: number; lineCount: number }
 }
 
 export interface TabState {
@@ -110,7 +113,13 @@ function createTab(projectPath: string | null, projectName: string | null): TabS
     id: nextId(),
     projectPath,
     projectName,
-    view: { mode: DEFAULT_VIEW_MODE, selectedNodeId: null, backtrace: null, compare: false },
+    view: {
+      mode: DEFAULT_VIEW_MODE,
+      selectedNodeId: null,
+      backtrace: null,
+      focus: null,
+      compare: false
+    },
     analysis: createAnalysisState(),
     log: null,
     codeView: null,
@@ -231,11 +240,31 @@ export class TabStore {
     this.emit()
   }
 
-  /** 함수 호출처 역추적을 시작/전환한다. (02 §6, 03 §5.3, M10_2) */
+  /** 함수 호출처 역추적을 시작/전환한다. 포커스 모드는 종료한다. (02 §6, 03 §5.3, M10_2) */
   setBacktrace(id: string, functionId: string): void {
     const tab = this.tabs.find((t) => t.id === id)
     if (!tab || tab.view.backtrace === functionId) return
-    tab.view = { ...tab.view, backtrace: functionId }
+    tab.view = { ...tab.view, backtrace: functionId, focus: null }
+    this.emit()
+  }
+
+  /**
+   * 파일 노드를 포커스한다(그 파일 중심으로 그래프/트리를 다시 그림). 역추적은 종료한다. (TODO_MORE)
+   * 선택도 함께 갱신해 정보 패널이 그 파일을 가리키게 한다.
+   */
+  setFocus(id: string, nodeId: string): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab) return
+    if (tab.view.focus === nodeId && tab.view.selectedNodeId === nodeId) return
+    tab.view = { ...tab.view, focus: nodeId, selectedNodeId: nodeId, backtrace: null }
+    this.emit()
+  }
+
+  /** 포커스를 해제하고 전체(초기) 그래프로 돌아간다. (TODO_MORE) */
+  clearFocus(id: string): void {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || tab.view.focus === null) return
+    tab.view = { ...tab.view, focus: null }
     this.emit()
   }
 
@@ -442,6 +471,7 @@ export class TabStore {
         mode: p.view.mode,
         selectedNodeId: p.view.selectedNodeId,
         backtrace: null,
+        focus: null,
         compare: false
       }
       return tab

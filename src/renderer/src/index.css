@@ -609,13 +609,14 @@ body {
   z-index: 5;
 }
 
-/* 별도 "보기 내 검색" 영역(우상단, 코드/테마 토글 버튼 좌측). (TODO_MORE) */
+/* 별도 "보기 내 검색" 영역(우상단). 관계도/트리 토글(top:12) 바로 아래로 내려
+   기존 토글과 겹치지 않게 한다. 아래 정보 패널 스택(.overlay-right)도 그만큼 내림. (TODO_MORE) */
 .ws-search-view {
   position: absolute;
-  top: 12px;
-  right: 96px;
+  top: 50px;
+  right: 12px;
   width: 240px;
-  z-index: 5;
+  z-index: 6;
 }
 
 /* 보기 내 검색은 메인 검색과 시각적으로 구분(점선 테두리 + 강조 라벨 느낌). */
@@ -714,13 +715,14 @@ body {
 /* 우상단 정보 패널 세로 스택(겹침 방지). (TODO_MORE) */
 .overlay-right {
   position: absolute;
-  top: 56px;
+  /* 보기 내 검색(top:50, 높이 ~36)을 피해 그 아래에서 시작. (TODO_MORE) */
+  top: 96px;
   right: 12px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
-  max-height: calc(100% - 68px);
+  max-height: calc(100% - 108px);
   overflow-y: auto;
   pointer-events: none;
   z-index: 4;
@@ -772,8 +774,8 @@ body {
   padding-left: 16px;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* 함수를 전부 표시하되, 길어지면 패널 내부에서만 스크롤. (TODO_MORE) */
-  max-height: 260px;
+  /* 함수를 전부 표시하되, 길어지면 패널 내부에서만 스크롤. 목록을 더 길게. (TODO_MORE) */
+  max-height: min(60vh, 520px);
   overflow-y: auto;
 }
 

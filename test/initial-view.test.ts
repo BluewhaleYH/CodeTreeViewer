@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selectInitialView } from '../src/renderer/src/graph/initial-view'
+import { selectFocusView, selectInitialView } from '../src/renderer/src/graph/initial-view'
 import type { CodeGraph, GraphNode } from '../src/shared/graph'
 
 function fileNode(id: string): GraphNode {
@@ -61,5 +61,53 @@ describe('초기 뷰 선택 (M5_5)', () => {
         return ids.has(e.from) && ids.has(e.to)
       })
     ).toBe(true)
+  })
+})
+
+describe('포커스 뷰 선택 (TODO_MORE)', () => {
+  it('중심 파일에서 양방향(의존+피의존) 이웃을 모두 포함한다', () => {
+    // b ← a → ... 그리고 c → a (c가 a를 의존). 중심 a면 a,b,c 모두 포함.
+    const graph: CodeGraph = {
+      nodes: ['a', 'b', 'c', 'far'].map(fileNode),
+      edges: [edge('a', 'b'), edge('c', 'a'), edge('far', 'c')]
+    }
+    const view = selectFocusView(graph, 'a', 100)
+    const ids = view.nodes.map((n) => n.id).sort()
+    // a의 1-홉: b(의존), c(피의존). far는 2-홉(c 경유) → 노드 상한 넉넉하면 포함.
+    expect(ids).toContain('a')
+    expect(ids).toContain('b')
+    expect(ids).toContain('c')
+  })
+
+  it('교차 파일 호출처(file-call)도 포커스 이웃에 포함한다', () => {
+    // A.java의 함수를 B.java가 호출 → file-call B→A. 중심 A면 B도 포함.
+    const graph: CodeGraph = {
+      nodes: ['A.java', 'B.java'].map(fileNode),
+      edges: [{ id: 'fc', type: 'file-call', from: 'B.java', to: 'A.java', line: 1 }]
+    }
+    const view = selectFocusView(graph, 'A.java', 100)
+    expect(view.nodes.map((n) => n.id).sort()).toEqual(['A.java', 'B.java'])
+  })
+
+  it('노드 상한을 넘지 않으며 가까운 거리부터 채운다', () => {
+    // 별 모양: center에 직접 연결된 1..5 + 멀리 떨어진 far(2-홉)
+    const graph: CodeGraph = {
+      nodes: ['center', 'n1', 'n2', 'n3', 'far'].map(fileNode),
+      edges: [edge('center', 'n1'), edge('center', 'n2'), edge('center', 'n3'), edge('n1', 'far')]
+    }
+    const view = selectFocusView(graph, 'center', 3)
+    const ids = view.nodes.map((n) => n.id)
+    expect(ids.length).toBeLessThanOrEqual(3)
+    expect(ids).toContain('center') // 중심은 항상 포함
+    expect(ids).not.toContain('far') // 2-홉은 상한에 막혀 제외
+  })
+
+  it('function 노드는 렌더 대상이 아니므로 제외한다', () => {
+    const graph: CodeGraph = {
+      nodes: [fileNode('a'), fileNode('b'), fnNode('a#m')],
+      edges: [edge('a', 'b')]
+    }
+    const view = selectFocusView(graph, 'a', 100)
+    expect(view.nodes.every((n) => n.kind === 'file')).toBe(true)
   })
 })

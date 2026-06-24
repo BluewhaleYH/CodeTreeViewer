@@ -112,10 +112,19 @@ if (root) {
       const activeId = store.getActiveId()
       if (activeId) store.clearBacktrace(activeId)
     }
-    // 검색: 함수 결과는 호출처 역추적, 파일 결과는 포커스. (M7_4, M10_2)
+    // 포커스: 파일을 중심으로 그래프/트리를 다시 그린다. (TODO_MORE)
+    const focusFile = (nodeId: string): void => {
+      const activeId = store.getActiveId()
+      if (activeId) store.setFocus(activeId, nodeId)
+    }
+    const exitFocus = (): void => {
+      const activeId = store.getActiveId()
+      if (activeId) store.clearFocus(activeId)
+    }
+    // 검색: 함수 결과는 호출처 역추적, 파일 결과는 그 파일 중심 포커스(다시 그리기). (M7_4, M10_2, TODO_MORE)
     const onSearchPick = (entry: SearchEntry): void => {
       if (entry.kind === 'function') startBacktrace(entry.id)
-      else selectNode(focusTargetId(entry))
+      else focusFile(focusTargetId(entry))
     }
     // 메인 검색(프로젝트 전역).
     const searchView = new SearchView(wsSearch, onSearchPick)
@@ -199,7 +208,8 @@ if (root) {
         const cv = active?.codeView
         // 현재 파일에 정의된 함수 우선, 없으면 프로젝트 전역에서 동일명이 유일할 때만(오탐 방지).
         const inFile =
-          cv && graph.nodes.find((n) => n.kind === 'function' && n.path === cv.file && n.name === name)
+          cv &&
+          graph.nodes.find((n) => n.kind === 'function' && n.path === cv.file && n.name === name)
         if (inFile) {
           startBacktrace(inFile.id)
           return
@@ -210,11 +220,7 @@ if (root) {
     })
 
     // 소스를 편집기로 연다(노드→소스 / 로그 후보→코드). 코드 패널을 자동으로 보이게 한다. (06 §2, M12_1, TODO_MORE)
-    const openSource = async (
-      file: string,
-      line: number,
-      focusFileNode = true
-    ): Promise<void> => {
+    const openSource = async (file: string, line: number, focusFileNode = true): Promise<void> => {
       const activeId = store.getActiveId()
       const active = store.getActive()
       if (!activeId || !active?.projectPath) return
@@ -280,6 +286,8 @@ if (root) {
         openProject: () => void openProject(),
         backtrace: startBacktrace,
         exitBacktrace,
+        focusFile,
+        exitFocus,
         openCandidate: (site) => void openSource(site.file, site.line),
         openSource: (file, line) => void openSource(file, line),
         clearImpact: () => {
