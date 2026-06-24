@@ -201,6 +201,21 @@ export function buildFileGraph(
     }
   }
 
+  // 4-1) JNI 경계(RegisterNatives 방식): C/C++의 클래스 디스크립터("com/android/.../Foo")를
+  //      프로젝트 Java 클래스(typeIndex)와 매칭 → jni-boundary 엣지. AOSP가 실제로 쓰는 방식. (TODO_MORE)
+  //      부모=Java 파일(native 인터페이스), 자식=C/C++ 파일(구현 등록).
+  for (const info of infos) {
+    const refs = info.jniClassRefs
+    if (!refs || refs.length === 0) continue
+    const cId = fileNodeId(info.file.relativePath)
+    for (const fqn of refs) {
+      const javaFile = typeIndex.get(fqn)
+      if (javaFile && javaFile !== info.file.relativePath) {
+        builder.addEdge('jni-boundary', fileNodeId(javaFile), cId, null)
+      }
+    }
+  }
+
   return builder.build()
 }
 
