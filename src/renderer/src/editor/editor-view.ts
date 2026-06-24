@@ -129,10 +129,14 @@ export class EditorView {
       })
       this.editor.onDidChangeModelContent(() => this.recomputeDirty())
       this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => this.requestSave())
-      // 식별자 선택 → 통지(함수명 선택 시 그래프 노드 선택용). (TODO_MORE)
+      // 식별자 선택/클릭 → 통지(함수명 클릭 시 그래프 노드 선택용). (TODO_MORE)
+      // 드래그/더블클릭 선택은 선택 텍스트, 단일 클릭은 커서 위치의 단어를 사용한다.
       this.editor.onDidChangeCursorSelection((e) => {
-        const text = this.editor?.getModel()?.getValueInRange(e.selection)?.trim()
-        if (text && /^[A-Za-z_$][\w$]*$/.test(text)) this.callbacks.onSymbolSelect?.(text)
+        const model = this.editor?.getModel()
+        if (!model) return
+        let name = model.getValueInRange(e.selection).trim()
+        if (!name) name = model.getWordAtPosition(e.selection.getPosition())?.word ?? ''
+        if (name && /^[A-Za-z_$][\w$]*$/.test(name)) this.callbacks.onSymbolSelect?.(name)
       })
     }
     return this.editor

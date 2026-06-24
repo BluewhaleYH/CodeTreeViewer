@@ -37,21 +37,31 @@ jobs:
         run: |
           npm run build
           npx electron-builder --win nsis zip --publish never
+      # 산출물 파일명에 짧은 커밋 해시를 붙여 빌드마다 고유하게(캐시/구버전 혼동 방지). (TODO_MORE)
+      - name: Rename artifacts with build id
+        shell: bash
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          cd dist
+          for f in *-win.zip; do mv "$f" "CodeTreeViewer-${SHA}-win.zip"; done
+          for f in *.exe; do mv "$f" "CodeTreeViewer-Setup-${SHA}.exe"; done
+          ls -1 *.zip *.exe
       # 고정 태그 test-build 프리릴리스를 갱신(이전 것 삭제 후 재생성).
       - name: Publish test pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          SHA=$(git rev-parse --short HEAD)
           gh release delete test-build --yes --cleanup-tag || true
           gh release create test-build \
             --target "${{ inputs.ref }}" \
             --prerelease \
             --latest=false \
-            --title "테스트 빌드 (최신 ${{ inputs.ref }})" \
-            --notes "로그인 없이 받을 수 있는 테스트용 프리릴리스입니다. 정식 릴리스가 아니며, 빌드할 때마다 이 게시물이 갱신됩니다.
-          - 설치본: \`CodeTreeViewer-Setup-*.exe\`
-          - 포터블: \`CodeTreeViewer-*-win.zip\`(압축 풀고 CodeTreeViewer.exe 실행)
+            --title "테스트 빌드 ($SHA)" \
+            --notes "로그인 없이 받는 테스트용 프리릴리스. 정식 릴리스 아님. 빌드마다 이 게시물이 갱신되고 **파일명에 커밋 해시($SHA)**가 붙습니다(매번 새 파일).
+          - 포터블(권장): \`CodeTreeViewer-$SHA-win.zip\` → **새 폴더에 풀고** CodeTreeViewer.exe 실행. 앱 **타이틀바에 \`· $SHA\`** 표시로 빌드 확인.
+          - 설치본: \`CodeTreeViewer-Setup-$SHA.exe\`
           무서명이라 SmartScreen 경고 시 '추가 정보 → 실행'." \
             dist/*.exe dist/*-win.zip
           echo "릴리스 URL:"; gh release view test-build --json url --jq .url
