@@ -52,6 +52,11 @@ export interface FileInfo {
   nativeMethods: string[]
   /** C/C++의 JNI 구현 함수명(Java_...). (M14_1) */
   jniFunctions: string[]
+  /**
+   * C/C++의 RegisterNatives/FindClass 클래스 디스크립터 → Java 클래스 FQN.
+   * AOSP가 실제로 쓰는 JNINativeMethod 테이블 방식 JNI 경계 탐지용. (TODO_MORE)
+   */
+  jniClassRefs?: string[]
 }
 
 /** 로그 호출로 인식할 리시버(마지막 식별자 기준). (결정: Log.* + 흔한 프레임워크) */
@@ -201,6 +206,32 @@ function cppCalleeName(call: Node): string | null {
   return cppDeclName(fn)
 }
 
+/**
+ * JNI 클래스 디스크립터 문자열("pkg/sub/Class")인지 판단한다.
+ * 슬래시 포함 + 허용 문자(`\w/$`)만 + 마지막 세그먼트가 대문자로 시작(클래스명). (TODO_MORE)
+ */
+function isJniClassDescriptor(s: string): boolean {
+  if (!s.includes('/') || /[^\w/$]/.test(s)) return false
+  const segs = s.split('/')
+  if (segs.length < 2) return false
+  return /^[A-Z]/.test(segs[segs.length - 1])
+}
+
+/**
+ * C/C++ 소스의 JNI 클래스 디스크립터 문자열을 Java 클래스 FQN으로 수집한다.
+ * `RegisterNatives`/`REGISTER_NATIVE_METHODS`/`FindClass`의 "com/android/.../Foo" 인자 →
+ * `com.android...Foo`(내부 클래스 `$`는 최상위로). dependency-graph에서 Java 파일과 매칭. (TODO_MORE)
+ */
+function extractJniClassRefs(root: Node): string[] {
+  const out = new Set<string>()
+  for (const lit of root.descendantsOfType('string_literal')) {
+    const raw = stripQuotes(lit.text)
+    if (!isJniClassDescriptor(raw)) continue
+    out.add(raw.replace(/\//g, '.').replace(/\$.*$/, ''))
+  }
+  return [...out]
+}
+
 /** C/C++: 함수 정의 + 본문 내 호출을 추출한다(호출 그래프/역추적용). (TODO_MORE) */
 function extractCFamilyFunctions(root: Node): FunctionDef[] {
   const functions: FunctionDef[] = []
@@ -256,7 +287,8 @@ function extractCFamily(root: Node, file: ScannedFile): FileInfo {
     functions: extractCFamilyFunctions(root),
     logSites: [],
     nativeMethods: [],
-    jniFunctions
+    jniFunctions,
+    jniClassRefs: extractJniClassRefs(root)
   }
 }
 

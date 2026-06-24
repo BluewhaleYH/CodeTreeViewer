@@ -41,6 +41,33 @@ describe('runAnalysis — 스캔→파싱 오케스트레이션 (M3_3)', () => {
     expect(summary.byLanguage).toEqual({ java: 1, kotlin: 1 })
   })
 
+  it('RegisterNatives(JNINativeMethod) 방식 JNI 경계를 탐지한다 (AOSP 실측 대응, TODO_MORE)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
+    await write(
+      'java/com/android/bt/FooNativeInterface.java',
+      'package com.android.bt;\nclass FooNativeInterface {\n  native boolean connectNative(byte[] a);\n}\n'
+    )
+    await write(
+      'jni/com_android_bt_foo.cpp',
+      [
+        'static jboolean connectNative(JNIEnv* env, jobject o, jbyteArray a) { return 1; }',
+        'int register_foo(JNIEnv* env) {',
+        '  const JNINativeMethod methods[] = {',
+        '    {"connectNative", "([B)Z", reinterpret_cast<void*>(connectNative)},',
+        '  };',
+        '  return REGISTER_NATIVE_METHODS(env, "com/android/bt/FooNativeInterface", methods);',
+        '}'
+      ].join('\n')
+    )
+
+    const { graph } = await runAnalysis(root, parser)
+    const jni = graph.edges.filter((e) => e.type === 'jni-boundary')
+    expect(jni.length).toBe(1)
+    const nameOf = (id: string): string | undefined => graph.nodes.find((n) => n.id === id)?.name
+    expect(nameOf(jni[0].from)).toBe('FooNativeInterface.java') // Java native 인터페이스
+    expect(nameOf(jni[0].to)).toBe('com_android_bt_foo.cpp') // C++ 등록 파일
+  })
+
   it('진행률을 scanning→parsing→done 순으로 보고한다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
     await write('A.java', 'class A {}')

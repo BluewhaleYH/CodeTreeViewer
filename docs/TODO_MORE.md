@@ -67,3 +67,7 @@
 - [x] **역추적 = 체인 전체 보이기(자매 노드 확인)** — 역추적 진입 시 선택 노드만 줌(`fitToSelection(root)`)해서 위쪽 호출처 체인이 화면 밖으로 잘려 "자매 노드 없음"을 확인하기 어려웠음. `backtraceLayout`에 `fit:true`를 주고 leaf-줌 오버라이드 제거 → **체인 전체**가 보임. (자매 노드 제외 로직은 이미 정상 — D→B→A에서 B의 다른 자식 C가 표시되지 않음을 격리 캡처로 재확인.)
 - [x] **클릭 시 흐림 강조 가시성↑** — `.dimmed` opacity 0.16→**0.08**로 더 또렷하게(선택 노드의 in/out 이웃만 강조, 나머지 흐림). 단일 클릭은 줌을 바꾸지 않아 흐림이 그대로 보임(기존 로직 유지).
 - [x] **중첩 검색을 별도 영역으로 분리** — 메인 검색의 "보기 내" 체크박스 제거. 대신 **우상단에 별도 "보기 내 검색" 박스**(점선 강조 테두리, `SearchView` 2번째 인스턴스, 항상 현재 표시 노드로 한정). 메인 검색은 프로젝트 전역.
+
+## JNI 고도화 — 2026-06-24 (AOSP Bluetooth 실측으로 발견)
+
+- [x] **RegisterNatives(JNINativeMethod) 방식 JNI 경계 탐지** — 실제 AOSP Bluetooth로 분석해보니 JNI 경계 엣지가 **0개**였음. 원인: 기존 탐지(M14_1)는 `Java_...` 맹글링 함수명 규칙만 매칭하는데, **AOSP는 이 규칙을 안 쓰고**(BT에 `Java_` 함수 0개) `JNINativeMethod` 테이블 + `REGISTER_NATIVE_METHODS(env, "com/android/.../Foo", methods)` 방식을 씀(BT 20개 파일). → C/C++ 소스의 **클래스 디스크립터 문자열**("com/android/.../Foo")을 FQN으로 수집(`extractJniClassRefs`)해 프로젝트 Java 클래스(`typeIndex`)와 매칭 → `jni-boundary` 엣지(Java 인터페이스 → C++ 등록 파일). **CLAUDE.md "JNI 경계 고도화(추후)" 단계를 사용자 동의로 진행.** 실측 결과 BT 모듈에서 JNI 엣지 0→**42개**(`A2dpSinkNativeInterface.java → com_android_bluetooth_a2dp_sink.cpp` 등 정확). 합성 단위 테스트 추가. (기존 `Java_` 맹글링 매칭은 유지.)
