@@ -278,7 +278,6 @@ export class GraphView {
         this.domainColors
       ),
       style: GRAPH_STYLE,
-      layout: backtraceLayout,
       wheelSensitivity: WHEEL_SENSITIVITY,
       minZoom: 0.05,
       maxZoom: 4
@@ -289,7 +288,8 @@ export class GraphView {
     cy.on('tap', 'node', (event) => this.revealCallers(event.target.id()))
     this.markBacktraceExpandable()
     cy.getElementById(functionId).addClass('selected') // 마지막 노드 강조(유일한 리프)
-    this.fitToSelection(functionId) // 선택 노드가 잘 보이게. (TODO_MORE)
+    // 레이아웃 완료 후 선택 노드로 줌. (TODO_MORE)
+    this.runLayoutThenFocus(cy, backtraceLayout, () => functionId)
   }
 
   /** 노드의 직접 호출처(1-홉)를 드러낸다(점진 확장). (M10_2) */
@@ -398,7 +398,6 @@ export class GraphView {
       container: this.host,
       elements: toCytoscapeElements(view.graph, this.domainColors),
       style: GRAPH_STYLE,
-      layout: layoutFor(mode),
       wheelSensitivity: WHEEL_SENSITIVITY,
       minZoom: 0.05,
       maxZoom: 4
@@ -412,9 +411,22 @@ export class GraphView {
     this.selectedId = selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : null
     this.applySelectedStyle()
 
-    // 기본 줌: 선택 노드(없으면 최상위 루트 노드)가 잘 보이게 줌. (TODO_MORE)
-    const focus = this.pickFocus(view.graph)
-    if (focus) this.fitToSelection(focus)
+    // 레이아웃을 명시 실행하고, 완료 후 포커스 노드(선택 or 최상위 루트)로 줌. (TODO_MORE)
+    this.runLayoutThenFocus(cy, layoutFor(mode), () => this.pickFocus(view.graph))
+  }
+
+  /** 레이아웃을 실행하고 완료(layoutstop) 후 포커스 노드로 ~80% 줌한다. (TODO_MORE) */
+  private runLayoutThenFocus(
+    cy: Core,
+    layoutOptions: LayoutOptions,
+    focusId: () => string | null
+  ): void {
+    const layout = cy.layout(layoutOptions)
+    layout.one('layoutstop', () => {
+      const focus = focusId()
+      if (focus) this.fitToSelection(focus)
+    })
+    layout.run()
   }
 
   /** 포커스 노드: 선택 노드(표시 중)면 그것, 없으면 최상위(incoming 없는) 렌더 노드 1개. (TODO_MORE) */

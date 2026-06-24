@@ -12,6 +12,11 @@ import { SettingsView } from './settings/settings-view'
 import { splitLines } from './log/log-lines'
 import { fileNodeId } from '../../shared/graph'
 
+// 빌드 식별자(타이틀바에 표시 → 어느 빌드인지 확인). 빌드 시 주입. (TODO_MORE)
+declare const __BUILD_ID__: string
+const BUILD_ID = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'
+document.title = `CodeTreeViewer · ${BUILD_ID}`
+
 const root = document.getElementById('app')
 
 if (root) {
