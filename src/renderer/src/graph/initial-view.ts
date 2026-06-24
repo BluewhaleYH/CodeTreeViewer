@@ -7,7 +7,12 @@ import type { CodeGraph } from '../../../shared/graph'
  * function 노드는 렌더 대상이 아니므로 제외하고 계산한다.
  */
 
-export const DEFAULT_MAX_INITIAL_NODES = 2000
+/**
+ * 초기 렌더 노드 상한. 대규모 프로젝트(수천 파일)에서 탭 전환마다 dagre 레이아웃 +
+ * 캔버스 렌더가 동기로 돌아 UI가 멈추는 것을 막기 위해, 진입점 중심 일부만 먼저 그린다.
+ * 나머지는 노드 클릭으로 점진 확장한다. (TODO_MORE 성능)
+ */
+export const DEFAULT_MAX_INITIAL_NODES = 600
 
 export interface InitialView {
   /** 초기 렌더할 부분 그래프(파일+외부). */
