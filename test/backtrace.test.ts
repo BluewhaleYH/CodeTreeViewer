@@ -5,7 +5,8 @@ import {
   callersUpToDepth,
   backtraceTree,
   expandableCallers,
-  backtraceSubgraph
+  backtraceSubgraph,
+  FILE_BACKTRACE_EDGES
 } from '../src/renderer/src/graph/backtrace'
 import type { CodeGraph, GraphEdge, GraphNode } from '../src/shared/graph'
 
@@ -96,5 +97,51 @@ describe('backtrace — 호출처 역추적 (M10_2)', () => {
     const sub = backtraceSubgraph(new Set(['a', 'c']), graph)
     expect(sub.nodes.map((n) => n.id).sort()).toEqual(['a', 'c'])
     expect(sub.edges.map((e) => e.id)).toEqual(['function-call:a->c'])
+  })
+})
+
+describe('backtrace — 파일 노드 역추적 (TODO_MORE)', () => {
+  function fileNode(id: string): GraphNode {
+    return {
+      id,
+      kind: 'file',
+      name: id,
+      path: id,
+      language: 'kotlin',
+      domain: 'app',
+      external: false,
+      line: null
+    }
+  }
+  // A→B(파일 의존), C→B(파일 호출), B→D. function-call 엣지는 파일 역추적에서 무시되어야 한다.
+  const fileGraph: CodeGraph = {
+    nodes: [fileNode('A'), fileNode('B'), fileNode('C'), fileNode('D')],
+    edges: [
+      { id: 'file-dependency:A->B', type: 'file-dependency', from: 'A', to: 'B', line: null },
+      { id: 'file-call:C->B', type: 'file-call', from: 'C', to: 'B', line: null },
+      { id: 'file-dependency:B->D', type: 'file-dependency', from: 'B', to: 'D', line: null },
+      callEdge('A', 'B') // function-call 은 파일 역추적에서 제외
+    ]
+  }
+
+  it('FILE_BACKTRACE_EDGES로 file-dependency·file-call만 역방향으로 모은다', () => {
+    const adj = buildCallerAdjacency(fileGraph, FILE_BACKTRACE_EDGES)
+    expect((adj.get('B') ?? []).sort()).toEqual(['A', 'C']) // B를 의존/호출하는 쪽
+    expect(adj.get('D')).toEqual(['B'])
+  })
+
+  it('파일 역추적은 선택 파일을 유일한 sink로 두고 의존/호출처를 거슬러 올라간다', () => {
+    const adj = buildCallerAdjacency(fileGraph, FILE_BACKTRACE_EDGES)
+    const displayed = callersUpToDepth('B', adj, 5)
+    expect([...displayed].sort()).toEqual(['A', 'B', 'C']) // D(하위)는 포함 안 됨
+    const tree = backtraceTree(displayed, fileGraph, 'B', adj, FILE_BACKTRACE_EDGES)
+    expect(tree.edges.map((e) => `${e.from}->${e.to}`).sort()).toEqual(['A->B', 'C->B'])
+    const hasOut = (id: string): boolean => tree.edges.some((e) => e.from === id)
+    expect(hasOut('B')).toBe(false) // B만 sink
+  })
+
+  it('기본(함수) 역추적은 file-* 엣지를 무시한다', () => {
+    const adj = buildCallerAdjacency(fileGraph) // 기본 = FUNCTION_BACKTRACE_EDGES
+    expect((adj.get('B') ?? []).sort()).toEqual(['A']) // function-call A->B 만
   })
 })

@@ -483,6 +483,13 @@ body {
   filter: brightness(1.15);
 }
 
+/* 노드 정보 패널의 동작 버튼 행(소스 열기 · 이 파일 역추적). (TODO_MORE) */
+.info-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .logview__ln {
   flex: 0 0 auto;
   width: 56px;
@@ -750,6 +757,9 @@ body {
   padding-left: 16px;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* 함수를 전부 표시하되, 길어지면 패널 내부에서만 스크롤. (TODO_MORE) */
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 /* 함수 목록 항목(클릭 → 호출처 역추적). (M10_2) */

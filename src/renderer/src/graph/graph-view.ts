@@ -3,7 +3,7 @@ import dagre from 'cytoscape-dagre'
 
 // 방향성 계층 레이아웃(dagre)을 1회 등록. 관계도가 의존 방향(위→아래)을 반영하도록. (TODO_MORE)
 cytoscape.use(dagre)
-import type { CodeGraph } from '../../../shared/graph'
+import type { CodeGraph, EdgeType } from '../../../shared/graph'
 import type { TabState, ViewMode } from '../tabs/tab-store'
 import { backtraceElements, compareElements, toCytoscapeElements } from './to-cytoscape'
 import { buildChildAdjacency, hiddenNodeIds } from './tree-collapse'
@@ -14,7 +14,9 @@ import {
   backtraceTree,
   buildCallerAdjacency,
   callersUpToDepth,
-  expandableCallers
+  expandableCallers,
+  FILE_BACKTRACE_EDGES,
+  FUNCTION_BACKTRACE_EDGES
 } from './backtrace'
 
 /** 역추적 진입 시 초기 표시 단계(호출처 체인 깊이). 이후 노드 클릭으로 더 확장. (TODO_MORE) */
@@ -175,6 +177,11 @@ function layoutFor(mode: ViewMode): LayoutOptions {
   return mode === 'tree' ? treeLayout : graphLayout
 }
 
+/** 증분 갱신(이웃/호출처 확장)용 레이아웃: 화면을 다시 맞추지 않아 줌/위치를 보존한다. (TODO_MORE) */
+function incrementalLayoutFor(mode: ViewMode): LayoutOptions {
+  return { ...layoutFor(mode), fit: false } as unknown as LayoutOptions
+}
+
 export class GraphView {
   private cy: Core | null = null
   private currentKey: string | null = null
@@ -194,6 +201,8 @@ export class GraphView {
   // 역추적(backtrace) 상태. (M10_2)
   private backtraceId: string | null = null
   private callerAdjacency: Map<string, string[]> = new Map()
+  // 현재 역추적이 따라가는 엣지 종류(함수=호출, 파일=의존/호출). (TODO_MORE)
+  private backtraceEdges: readonly EdgeType[] = FUNCTION_BACKTRACE_EDGES
 
   // 재분석 영향 범위 강조. (M12_4)
   private impactKey: string | null = null
@@ -201,8 +210,15 @@ export class GraphView {
   constructor(
     private readonly host: HTMLElement,
     private readonly onSelectNode?: (nodeId: string | null) => void,
-    private readonly maxInitialNodes: number = DEFAULT_MAX_INITIAL_NODES
+    private readonly maxInitialNodes: number = DEFAULT_MAX_INITIAL_NODES,
+    // 역추적 모드에서 노드를 클릭하면 선택을 바꾸지 않고 해당 소스를 코드 패널에 연다. (TODO_MORE)
+    private readonly onOpenSource?: (nodeId: string) => void
   ) {}
+
+  /** 현재 캔버스에 표시 중인 노드 id 집합(검색 범위 한정용). (TODO_MORE) */
+  getDisplayedIds(): ReadonlySet<string> {
+    return this.displayed
+  }
 
   sync(tab: TabState | null): void {
     const graph = tab && tab.analysis.status === 'done' ? tab.analysis.graph : null
@@ -260,21 +276,25 @@ export class GraphView {
    * 역추적 뷰를 그린다. 선택 함수(마지막 노드) + 직접 호출처(1-홉)를 표시하고,
    * 호출처 노드 클릭 시 그 위 호출처를 점진 확장한다. (02 §6, 03 §5.3, D17 점진 확장)
    */
-  private drawBacktrace(graph: CodeGraph, functionId: string): void {
+  private drawBacktrace(graph: CodeGraph, rootId: string): void {
     this.destroyCy()
     this.host.style.display = 'block'
-    this.backtraceId = functionId
+    this.backtraceId = rootId
     this.fullGraph = graph
     this.domainColors = assignDomainColors(graph)
-    this.callerAdjacency = buildCallerAdjacency(graph)
+    // 함수 노드는 호출 관계로, 파일 노드는 의존/호출 관계로 거슬러 올라간다. (TODO_MORE)
+    const rootNode = graph.nodes.find((n) => n.id === rootId)
+    this.backtraceEdges =
+      rootNode?.kind === 'function' ? FUNCTION_BACKTRACE_EDGES : FILE_BACKTRACE_EDGES
+    this.callerAdjacency = buildCallerAdjacency(graph, this.backtraceEdges)
 
-    // 초기에 호출처 체인을 여러 단계까지 표시(이후 노드 클릭으로 더 확장). (TODO_MORE)
-    this.displayed = callersUpToDepth(functionId, this.callerAdjacency, BACKTRACE_INITIAL_DEPTH)
+    // 초기에 호출처/의존처 체인을 여러 단계까지 표시(이후 노드 클릭으로 더 확장). (TODO_MORE)
+    this.displayed = callersUpToDepth(rootId, this.callerAdjacency, BACKTRACE_INITIAL_DEPTH)
 
     const cy = cytoscape({
       container: this.host,
       elements: backtraceElements(
-        backtraceTree(this.displayed, graph, functionId, this.callerAdjacency),
+        backtraceTree(this.displayed, graph, rootId, this.callerAdjacency, this.backtraceEdges),
         this.domainColors
       ),
       style: GRAPH_STYLE,
@@ -284,12 +304,16 @@ export class GraphView {
     })
     this.cy = cy
 
-    // 호출처 노드 클릭 = 그 위 호출처 점진 확장.
-    cy.on('tap', 'node', (event) => this.revealCallers(event.target.id()))
+    // 노드 클릭 = 해당 소스를 코드 패널에 열고(선택/모드는 유지) 그 위 호출처를 점진 확장. (TODO_MORE)
+    cy.on('tap', 'node', (event) => {
+      const id = event.target.id()
+      this.onOpenSource?.(id)
+      this.revealCallers(id)
+    })
     this.markBacktraceExpandable()
-    cy.getElementById(functionId).addClass('selected') // 마지막 노드 강조(유일한 리프)
+    cy.getElementById(rootId).addClass('selected') // 마지막 노드 강조(유일한 리프)
     // 레이아웃 완료 후 선택 노드로 줌. (TODO_MORE)
-    this.runLayoutThenFocus(cy, backtraceLayout, () => functionId)
+    this.runLayoutThenFocus(cy, backtraceLayout, () => rootId)
   }
 
   /** 노드의 직접 호출처(1-홉)를 드러낸다(점진 확장). (M10_2) */
@@ -302,14 +326,20 @@ export class GraphView {
 
     added.forEach((c) => this.displayed.add(c))
     const rootId = this.backtraceId ?? id
-    const sub = backtraceTree(this.displayed, this.fullGraph, rootId, this.callerAdjacency)
+    const sub = backtraceTree(
+      this.displayed,
+      this.fullGraph,
+      rootId,
+      this.callerAdjacency,
+      this.backtraceEdges
+    )
     const addedSet = new Set(added)
     const newNodes = sub.nodes.filter((n) => addedSet.has(n.id))
     const newEdges = sub.edges.filter(
       (e) => (addedSet.has(e.from) || addedSet.has(e.to)) && cy.getElementById(e.id).length === 0
     )
     cy.add(backtraceElements({ nodes: newNodes, edges: newEdges }, this.domainColors))
-    cy.layout(backtraceLayout).run()
+    cy.layout({ ...backtraceLayout, fit: false } as unknown as LayoutOptions).run()
     this.markBacktraceExpandable()
     if (this.backtraceId) cy.getElementById(this.backtraceId).addClass('selected')
   }
@@ -411,11 +441,15 @@ export class GraphView {
     this.selectedId = selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : null
     this.applySelectedStyle()
 
-    // 레이아웃을 명시 실행하고, 완료 후 포커스 노드(선택 or 최상위 루트)로 줌. (TODO_MORE)
-    this.runLayoutThenFocus(cy, layoutFor(mode), () => this.pickFocus(view.graph))
+    // 레이아웃을 명시 실행하고, 완료 후 초기 포커스를 잡는다. (TODO_MORE)
+    // - 선택 노드가 있으면 그 노드로 ~80% 줌.
+    // - 없으면 전체 그래프를 보이게 맞추되, ingoing이 가장 많은 노드를 시작 기준으로 강조.
+    const layout = cy.layout(layoutFor(mode))
+    layout.one('layoutstop', () => this.applyInitialFocus(view.graph))
+    layout.run()
   }
 
-  /** 레이아웃을 실행하고 완료(layoutstop) 후 포커스 노드로 ~80% 줌한다. (TODO_MORE) */
+  /** 레이아웃을 실행하고 완료(layoutstop) 후 포커스 노드로 ~80% 줌한다. (역추적 등) (TODO_MORE) */
   private runLayoutThenFocus(
     cy: Core,
     layoutOptions: LayoutOptions,
@@ -429,12 +463,41 @@ export class GraphView {
     layout.run()
   }
 
-  /** 포커스 노드: 선택 노드(표시 중)면 그것, 없으면 최상위(incoming 없는) 렌더 노드 1개. (TODO_MORE) */
-  private pickFocus(graph: CodeGraph): string | null {
-    if (this.selectedId && this.displayed.has(this.selectedId)) return this.selectedId
-    const incoming = new Set(graph.edges.map((e) => e.to))
-    const root = graph.nodes.find((n) => n.kind !== 'function' && !incoming.has(n.id))
-    return root?.id ?? graph.nodes[0]?.id ?? null
+  /**
+   * 초기 포커스: 선택 노드가 표시 중이면 그 노드로 줌, 아니면 전체를 보이게 맞추고
+   * ingoing(피의존)이 가장 많은 노드를 시작 기준으로 강조한다. (TODO_MORE)
+   */
+  private applyInitialFocus(graph: CodeGraph): void {
+    const cy = this.cy
+    if (!cy) return
+    if (this.selectedId && this.displayed.has(this.selectedId)) {
+      this.fitToSelection(this.selectedId)
+      return
+    }
+    // 전체 노드가 보이도록 맞춘 뒤, 가장 많이 의존받는 노드를 강조(시작 기준).
+    const padding = Math.round(Math.min(cy.width(), cy.height()) * 0.06)
+    cy.fit(undefined, padding)
+    const startId = this.mostIncomingId(graph)
+    if (startId) cy.getElementById(startId).addClass('selected')
+  }
+
+  /** 표시 중인 렌더 노드(파일/외부) 중 ingoing 엣지가 가장 많은 노드 id. (TODO_MORE) */
+  private mostIncomingId(graph: CodeGraph): string | null {
+    const inCount = new Map<string, number>()
+    for (const e of graph.edges) {
+      if (this.displayed.has(e.to)) inCount.set(e.to, (inCount.get(e.to) ?? 0) + 1)
+    }
+    let best: string | null = null
+    let bestN = -1
+    for (const n of graph.nodes) {
+      if (n.kind === 'function' || !this.displayed.has(n.id)) continue
+      const c = inCount.get(n.id) ?? 0
+      if (c > bestN) {
+        bestN = c
+        best = n.id
+      }
+    }
+    return best
   }
 
   private registerTapHandlers(): void {
@@ -448,17 +511,19 @@ export class GraphView {
       this.lastTapId = id
       this.lastTapTime = now
 
-      // 한 번 클릭: 선택 + 직접 이웃(1-홉) 표시.
+      // 한 번 클릭: 선택 + 관련 in/out 강조(나머지 흐리게) + 직접 이웃(1-홉) 표시.
+      // 줌은 그대로 둬서 "나머지가 흐려진" 모습이 보이도록 한다. (TODO_MORE)
       this.selectNode(id)
       if (this.mode === 'graph') this.reveal(id, 1)
 
       if (isDouble) {
-        // 더블클릭: 관계도는 더 깊게(2-홉), 트리는 접기/펼치기.
+        // 더블클릭: 관계도는 더 깊게(2-홉)+그 노드로 ~80% 줌, 트리는 접기/펼치기.
         if (this.mode === 'tree') this.toggleCollapse(id)
-        else this.reveal(id, 2)
+        else {
+          this.reveal(id, 2)
+          this.fitToSelection(id)
+        }
       }
-      // 클릭한 노드+이웃이 화면의 ~80%를 채우도록. (TODO_MORE)
-      this.fitToSelection(id)
     })
 
     cy.on('tap', (event) => {
@@ -518,7 +583,7 @@ export class GraphView {
         cy.getElementById(e.id).length === 0
     )
     cy.add(toCytoscapeElements({ nodes: addedNodes, edges: newEdges }, this.domainColors))
-    cy.layout(layoutFor(this.mode)).run()
+    cy.layout(incrementalLayoutFor(this.mode)).run()
     this.markExpandable()
     this.applySelectedStyle()
   }

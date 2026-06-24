@@ -1,7 +1,11 @@
 import type { TabState, TabStore } from './tab-store'
 import { DEFAULT_MAX_INITIAL_NODES } from '../graph/initial-view'
 import { assignDomainColors } from '../graph/domain-colors'
-import { buildCallerAdjacency } from '../graph/backtrace'
+import {
+  buildCallerAdjacency,
+  FILE_BACKTRACE_EDGES,
+  FUNCTION_BACKTRACE_EDGES
+} from '../graph/backtrace'
 import { diffGraphs } from '../graph/graph-diff'
 import { parseLogcatLine } from '../../../shared/logcat-parse'
 import { matchLogSites, confidenceOf, confidenceLabel } from '../../../shared/log-match'
@@ -131,13 +135,22 @@ function renderInfoPanel(
 
   panel.append(title, meta)
 
-  // 노드 → 소스 편집기 열기. 외부/미해결 노드는 소스가 없으므로 제외. (06 §2, M12_1)
+  // 노드 → 소스 편집기 열기 + 이 파일 역추적. 외부/미해결 노드는 소스가 없으므로 제외. (06 §2, M12_1)
   if (!node.external && node.kind === 'file') {
+    const actionsRow = document.createElement('div')
+    actionsRow.className = 'info-panel__actions'
     const open = document.createElement('button')
     open.className = 'info-panel__open'
     open.textContent = '소스 열기'
     open.addEventListener('click', () => actions.openSource(node.path, node.line ?? 1))
-    panel.appendChild(open)
+    // 파일 노드 역추적: 이 파일을 의존/호출하는 쪽을 depth만큼 거슬러 표시. (TODO_MORE)
+    const bt = document.createElement('button')
+    bt.className = 'info-panel__open'
+    bt.textContent = '이 파일 역추적'
+    bt.title = '이 파일을 의존/호출하는 쪽을 거슬러 올라가기'
+    bt.addEventListener('click', () => actions.backtrace(node.id))
+    actionsRow.append(open, bt)
+    panel.appendChild(actionsRow)
   }
 
   // 파일 노드: 정의된 함수 목록(검색·라벨용 데이터). (M4_4)
@@ -151,7 +164,8 @@ function renderInfoPanel(
     if (functions.length > 0) {
       const list = document.createElement('ul')
       list.className = 'info-panel__fns'
-      for (const fn of functions.slice(0, 30)) {
+      // 함수는 전부 표시한다(잘라내지 않음). 목록이 길면 패널 내부 스크롤. (TODO_MORE)
+      for (const fn of functions) {
         const li = document.createElement('li')
         // 함수 클릭 → 호출처 역추적. (M10_2)
         const btn = document.createElement('button')
@@ -160,12 +174,6 @@ function renderInfoPanel(
         btn.title = '호출처 역추적'
         btn.addEventListener('click', () => actions.backtrace(fn.id))
         li.appendChild(btn)
-        list.appendChild(li)
-      }
-      if (functions.length > 30) {
-        const li = document.createElement('li')
-        li.className = 'muted'
-        li.textContent = `…외 ${functions.length - 30}개`
         list.appendChild(li)
       }
       panel.appendChild(list)
@@ -182,7 +190,11 @@ function renderBacktracePanel(
   actions: TabContentActions
 ): HTMLElement {
   const node = graph.nodes.find((n) => n.id === functionId)
-  const callerCount = (buildCallerAdjacency(graph).get(functionId) ?? []).length
+  // 함수는 호출 관계로, 파일은 의존/호출 관계로 직접 역추적 대상 수를 센다. (TODO_MORE)
+  const isFn = node?.kind === 'function'
+  const edges = isFn ? FUNCTION_BACKTRACE_EDGES : FILE_BACKTRACE_EDGES
+  const callerCount = (buildCallerAdjacency(graph, edges).get(functionId) ?? []).length
+  const term = isFn ? '호출처' : '의존/호출처'
 
   const panel = document.createElement('div')
   panel.className = 'info-panel backtrace-panel'
@@ -195,8 +207,8 @@ function renderBacktracePanel(
   sub.className = 'backtrace-panel__sub muted'
   sub.textContent =
     callerCount > 0
-      ? `직접 호출처 ${callerCount}곳 · 노드를 클릭해 더 거슬러 올라가기`
-      : '직접 호출처가 없습니다(진입점이거나 미해결).'
+      ? `직접 ${term} ${callerCount}곳 · 노드를 클릭해 더 거슬러 올라가기`
+      : `직접 ${term}가 없습니다(진입점이거나 미해결).`
 
   const exit = document.createElement('button')
   exit.className = 'backtrace-panel__exit'
