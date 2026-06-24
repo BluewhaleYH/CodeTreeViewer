@@ -45,19 +45,37 @@ export interface CacheEntry {
   logSites?: LogSite[]
 }
 
+/** 동시성 상한을 둔 병렬 map(순서 보존). 대규모에서 FD 고갈 없이 I/O를 겹친다. (TODO_MORE 성능) */
+async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const out = new Array<R>(items.length)
+  let next = 0
+  async function worker(): Promise<void> {
+    for (let i = next++; i < items.length; i = next++) {
+      out[i] = await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return out
+}
+
 /** 스캔된 파일들의 stat(mtime+size) 지문. 파일 목록/내용 변화 시 값이 바뀐다. */
 export async function fileFingerprint(files: readonly ScannedFile[]): Promise<string> {
-  const hash = createHash('sha256')
-  for (const file of files) {
-    let meta = 'missing'
+  // stat을 병렬화(순서 보존)해 대규모 프로젝트의 지문 계산 지연을 줄인다. (TODO_MORE 성능)
+  const metas = await mapLimit(files, 64, async (file) => {
     try {
       const info = await stat(file.absolutePath)
-      meta = `${info.mtimeMs}:${info.size}`
+      return `${info.mtimeMs}:${info.size}`
     } catch {
       // 사라진 파일은 'missing'으로 표기(지문에 반영).
+      return 'missing'
     }
-    hash.update(`${file.relativePath}|${meta}\n`)
-  }
+  })
+  const hash = createHash('sha256')
+  files.forEach((file, i) => hash.update(`${file.relativePath}|${metas[i]}\n`))
   return hash.digest('hex')
 }
 

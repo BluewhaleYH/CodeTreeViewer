@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { SourceParser } from '../src/main/analysis/parser'
 import { resolveParserConfig } from '../src/main/analysis/wasm-paths'
 import { runAnalysis } from '../src/main/analysis/runner'
+import { contentFingerprint } from '../src/main/analysis/cache'
 import type { AnalysisProgress } from '../src/shared/analysis'
 
 let parser: SourceParser
@@ -74,6 +75,17 @@ describe('runAnalysis — 스캔→파싱 오케스트레이션 (M3_3)', () => {
     const { summary } = await runAnalysis(root, wrapped)
     expect(summary.parsedCount).toBe(2)
     expect(deletes).toBe(2) // 파일마다 정확히 1회 해제
+  })
+
+  it('파싱 중 계산한 contentFingerprint가 contentFingerprint(files)와 일치한다 (성능: 재읽기 제거)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
+    await write('app/A.java', 'class A { void f() {} }')
+    await write('app/B.kt', 'fun b() = 1\n')
+    await write('app/C.java', 'class C {}')
+
+    const result = await runAnalysis(root, parser)
+    // 파싱하며 누적한 지문이 별도 재읽기로 계산한 지문과 동일해야 캐시 하이브리드 체크가 동작한다.
+    expect(result.contentFingerprint).toBe(await contentFingerprint(result.files))
   })
 
   it('빈 프로젝트도 안전하게 처리한다', async () => {

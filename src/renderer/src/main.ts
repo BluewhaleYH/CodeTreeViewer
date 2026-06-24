@@ -10,7 +10,7 @@ import { LogView } from './log/log-view'
 import { EditorView } from './editor/editor-view'
 import { SettingsView } from './settings/settings-view'
 import { splitLines } from './log/log-lines'
-import { fileNodeId } from '../../shared/graph'
+import { fileNodeId, type CodeGraph } from '../../shared/graph'
 
 // 빌드 식별자(타이틀바에 표시 → 어느 빌드인지 확인). 빌드 시 주입. (TODO_MORE)
 declare const __BUILD_ID__: string
@@ -242,6 +242,10 @@ if (root) {
       applyTheme(currentTheme)
     })
 
+    // 검색 인덱스 캐시: 그래프 참조가 같으면 재사용(매 렌더마다 재구성 방지, 대규모 가속). (TODO_MORE 성능)
+    let searchIndexCache: { graph: CodeGraph; index: ReturnType<typeof buildSearchIndex> } | null =
+      null
+
     // 세션 저장: 탭/활성 탭이 바뀔 때만 IPC 전송(변경 감지). (01 §5, M8_3)
     let lastSerialized = ''
     const persistTabs = (): void => {
@@ -328,10 +332,14 @@ if (root) {
         editorView.setFile(null, null)
       }
       if (codeToggle) codeToggle.classList.toggle('is-active', codePanelOpen)
-      // 검색 인덱스: done 상태 그래프가 있을 때만 표시.
+      // 검색 인덱스: done 상태 그래프가 있을 때만 표시. 그래프가 바뀐 경우에만 재구성. (TODO_MORE 성능)
       if (active && active.analysis.status === 'done' && active.analysis.graph) {
         wsSearch.style.display = 'block'
-        searchView.setContext(active.id, buildSearchIndex(active.analysis.graph))
+        const graph = active.analysis.graph
+        if (!searchIndexCache || searchIndexCache.graph !== graph) {
+          searchIndexCache = { graph, index: buildSearchIndex(graph) }
+        }
+        searchView.setContext(active.id, searchIndexCache.index)
       } else {
         wsSearch.style.display = 'none'
       }
