@@ -16,8 +16,8 @@ export class SearchView {
   private index: readonly SearchEntry[] = []
   private contextKey: string | null = null
   private readonly history = new SearchHistory()
-  // "보기 내" 검색: 현재 그래프에 표시 중인 노드로 결과를 한정한다. (TODO_MORE)
-  private scopeToView = false
+  /** 항상 현재 보이는 노드로 한정할지(별도 "보기 내" 검색 영역에서 true). (TODO_MORE) */
+  private readonly scopeToView: boolean
   private scopeProvider: (() => ReadonlySet<string>) | null = null
 
   private readonly input: HTMLInputElement
@@ -25,31 +25,27 @@ export class SearchView {
 
   constructor(
     private readonly host: HTMLElement,
-    private readonly onPick: (entry: SearchEntry) => void
+    private readonly onPick: (entry: SearchEntry) => void,
+    options: { scopedToView?: boolean; placeholder?: string } = {}
   ) {
+    this.scopeToView = options.scopedToView ?? false
+    const placeholder = options.placeholder ?? '파일·함수 검색…'
     this.host.classList.add('searchbar')
+    if (this.scopeToView) this.host.classList.add('searchbar--scoped')
     this.host.innerHTML = `
       <div class="search__box">
-        <input class="search__input" type="text" placeholder="파일·함수 검색…" spellcheck="false" />
+        <input class="search__input" type="text" placeholder="${placeholder}" spellcheck="false" />
         <div class="search__options">
           <label><input type="checkbox" data-opt="caseSensitive" /> Aa</label>
           <label><input type="checkbox" data-opt="exact" /> 정확</label>
           <label><input type="checkbox" data-opt="includePath" /> 경로</label>
           <label><input type="checkbox" data-opt="fuzzy" /> 퍼지</label>
-          <label title="현재 그래프에 보이는 노드 안에서만 검색(중첩)"><input type="checkbox" data-scope="view" /> 보기 내</label>
         </div>
       </div>
       <div class="search__results"></div>
     `
     this.input = this.host.querySelector('.search__input') as HTMLInputElement
     this.results = this.host.querySelector('.search__results') as HTMLElement
-    ;(this.host.querySelector('input[data-scope="view"]') as HTMLInputElement).addEventListener(
-      'change',
-      (e) => {
-        this.scopeToView = (e.target as HTMLInputElement).checked
-        this.renderResults()
-      }
-    )
 
     this.input.addEventListener('input', () => {
       this.query = this.input.value

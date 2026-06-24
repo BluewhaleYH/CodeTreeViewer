@@ -4,7 +4,7 @@ import { renderTabBar } from './tabs/tab-bar'
 import { renderOverlay } from './tabs/tab-content'
 import { GraphView } from './graph/graph-view'
 import { SearchView } from './search/search-view'
-import { buildSearchIndex, focusTargetId } from './search/search-index'
+import { buildSearchIndex, focusTargetId, type SearchEntry } from './search/search-index'
 import { diffGraphs } from './graph/graph-diff'
 import { LogView } from './log/log-view'
 import { EditorView } from './editor/editor-view'
@@ -29,6 +29,7 @@ if (root) {
           <div class="ws-graph" id="ws-graph"></div>
           <div class="ws-overlay" id="ws-overlay"></div>
           <div class="ws-search" id="ws-search"></div>
+          <div class="ws-search-view" id="ws-search-view" hidden></div>
           <div class="session-notice" id="session-notice" hidden></div>
         </div>
         <div class="ws-resizer" id="ws-code-resizer" title="드래그해서 코드 패널 너비 조절" hidden></div>
@@ -45,9 +46,19 @@ if (root) {
   const wsGraph = root.querySelector<HTMLElement>('#ws-graph')
   const wsOverlay = root.querySelector<HTMLElement>('#ws-overlay')
   const wsSearch = root.querySelector<HTMLElement>('#ws-search')
+  const wsSearchView = root.querySelector<HTMLElement>('#ws-search-view')
   const wsCodeResizer = root.querySelector<HTMLElement>('#ws-code-resizer')
 
-  if (tabbar && wsLog && wsCode && wsGraph && wsOverlay && wsSearch && wsCodeResizer) {
+  if (
+    tabbar &&
+    wsLog &&
+    wsCode &&
+    wsGraph &&
+    wsOverlay &&
+    wsSearch &&
+    wsSearchView &&
+    wsCodeResizer
+  ) {
     const store = new TabStore()
 
     // 코드 패널 표시 여부(토글 버튼 + 노드/후보 클릭으로 제어). (TODO_MORE)
@@ -102,12 +113,18 @@ if (root) {
       if (activeId) store.clearBacktrace(activeId)
     }
     // 검색: 함수 결과는 호출처 역추적, 파일 결과는 포커스. (M7_4, M10_2)
-    const searchView = new SearchView(wsSearch, (entry) => {
+    const onSearchPick = (entry: SearchEntry): void => {
       if (entry.kind === 'function') startBacktrace(entry.id)
       else selectNode(focusTargetId(entry))
+    }
+    // 메인 검색(프로젝트 전역).
+    const searchView = new SearchView(wsSearch, onSearchPick)
+    // 별도 "보기 내 검색" 영역(우상단): 현재 그래프에 표시 중인 노드로만 한정(중첩 검색). (TODO_MORE)
+    const viewSearchView = new SearchView(wsSearchView, onSearchPick, {
+      scopedToView: true,
+      placeholder: '보기 내 검색…'
     })
-    // "보기 내" 검색 범위: 현재 그래프에 표시 중인 노드로 한정(중첩 검색). (TODO_MORE)
-    searchView.setScopeProvider(() => graphView.getDisplayedIds())
+    viewSearchView.setScopeProvider(() => graphView.getDisplayedIds())
     const closeLog = (): void => {
       const activeId = store.getActiveId()
       if (activeId) store.closeLog(activeId)
@@ -335,13 +352,16 @@ if (root) {
       // 검색 인덱스: done 상태 그래프가 있을 때만 표시. 그래프가 바뀐 경우에만 재구성. (TODO_MORE 성능)
       if (active && active.analysis.status === 'done' && active.analysis.graph) {
         wsSearch.style.display = 'block'
+        wsSearchView.hidden = false
         const graph = active.analysis.graph
         if (!searchIndexCache || searchIndexCache.graph !== graph) {
           searchIndexCache = { graph, index: buildSearchIndex(graph) }
         }
         searchView.setContext(active.id, searchIndexCache.index)
+        viewSearchView.setContext(active.id, searchIndexCache.index)
       } else {
         wsSearch.style.display = 'none'
+        wsSearchView.hidden = true
       }
       persistTabs()
     }

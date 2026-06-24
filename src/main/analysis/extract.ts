@@ -164,9 +164,68 @@ function extractCppSupertypes(root: Node): SupertypeRef[] {
 }
 
 /**
- * C/C++: #include 지시문을 파일 의존성 import로 추출한다. (02 §2, §3, M13)
+ * C/C++ 선언자(declarator)에서 함수/호출의 단순명을 뽑는다.
+ * 포인터/참조/괄호 선언자는 안쪽으로, 한정자(`Class::method`)는 마지막 식별자를 쓴다. (TODO_MORE)
+ */
+function cppDeclName(node: Node | null): string | null {
+  if (!node) return null
+  switch (node.type) {
+    case 'identifier':
+    case 'field_identifier':
+    case 'type_identifier':
+    case 'destructor_name':
+    case 'operator_name':
+      return node.text
+    case 'qualified_identifier': {
+      const ids = node.descendantsOfType(['identifier', 'field_identifier', 'destructor_name'])
+      return ids.length > 0 ? ids[ids.length - 1].text : null
+    }
+    case 'pointer_declarator':
+    case 'reference_declarator':
+    case 'parenthesized_declarator':
+    case 'function_declarator':
+      return cppDeclName(node.childForFieldName('declarator'))
+    default: {
+      const ids = node.descendantsOfType(['identifier', 'field_identifier'])
+      return ids.length > 0 ? ids[ids.length - 1].text : null
+    }
+  }
+}
+
+/** C/C++ call_expression의 호출 대상 단순명. `foo()`/`obj.bar()`/`ns::baz()` → 마지막 식별자. */
+function cppCalleeName(call: Node): string | null {
+  const fn = call.childForFieldName('function')
+  if (!fn) return null
+  if (fn.type === 'identifier' || fn.type === 'field_identifier') return fn.text
+  if (fn.type === 'field_expression') return fn.childForFieldName('field')?.text ?? null
+  return cppDeclName(fn)
+}
+
+/** C/C++: 함수 정의 + 본문 내 호출을 추출한다(호출 그래프/역추적용). (TODO_MORE) */
+function extractCFamilyFunctions(root: Node): FunctionDef[] {
+  const functions: FunctionDef[] = []
+  const funcById = new Map<number, FunctionDef>()
+  for (const fn of root.descendantsOfType('function_definition')) {
+    const name = cppDeclName(fn.childForFieldName('declarator'))
+    if (!name) continue
+    const def: FunctionDef = { name, line: fn.startPosition.row + 1, calls: [] }
+    functions.push(def)
+    funcById.set(fn.id, def)
+  }
+  // 호출은 가장 가까운 함수 정의에 귀속. (java/kotlin과 동일 방식)
+  for (const call of root.descendantsOfType('call_expression')) {
+    const name = cppCalleeName(call)
+    if (!name) continue
+    const owner = nearestAncestorOfType(call, 'function_definition')
+    const fn = owner ? funcById.get(owner.id) : undefined
+    if (fn) fn.calls.push({ name, line: call.startPosition.row + 1 })
+  }
+  return functions
+}
+
+/**
+ * C/C++: #include 지시문을 파일 의존성 import로 + 함수 정의/호출을 추출한다. (02 §2, §3, M13, TODO_MORE)
  * `#include "..."` → include-local(경로 해석), `#include <...>` → include-system(외부).
- * 함수/심볼 추출은 본 단계 범위 밖(파일 의존성만).
  */
 function extractCFamily(root: Node, file: ScannedFile): FileInfo {
   const imports: ImportRef[] = []
@@ -194,7 +253,7 @@ function extractCFamily(root: Node, file: ScannedFile): FileInfo {
     topLevelNames: [],
     imports,
     supertypes: file.language === 'cpp' ? extractCppSupertypes(root) : [],
-    functions: [],
+    functions: extractCFamilyFunctions(root),
     logSites: [],
     nativeMethods: [],
     jniFunctions
