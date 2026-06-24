@@ -152,7 +152,8 @@ function extractKotlinSupertypes(root: Node): SupertypeRef[] {
   const out: SupertypeRef[] = []
   for (const spec of root.descendantsOfType('delegation_specifier')) {
     const tids = spec.descendantsOfType('type_identifier')
-    if (tids.length > 0) out.push({ name: tids[tids.length - 1].text, line: spec.startPosition.row + 1 })
+    if (tids.length > 0)
+      out.push({ name: tids[tids.length - 1].text, line: spec.startPosition.row + 1 })
   }
   return out
 }
@@ -206,6 +207,41 @@ function cppCalleeName(call: Node): string | null {
   return cppDeclName(fn)
 }
 
+/** 인자로 넘어온 식별자(함수 참조 후보) 단순명. `&foo`/`ns::foo`/`foo` → `foo`. (TODO_MORE) */
+function argReferenceName(arg: Node): string | null {
+  switch (arg.type) {
+    case 'identifier':
+      return arg.text
+    case 'qualified_identifier': {
+      const ids = arg.descendantsOfType(['identifier', 'field_identifier', 'destructor_name'])
+      return ids.length > 0 ? ids[ids.length - 1].text : null
+    }
+    case 'pointer_expression': // &foo (함수 포인터 전달)
+    case 'parenthesized_expression': {
+      const inner = arg.childForFieldName('argument') ?? arg.namedChildren[0] ?? null
+      return inner && inner.id !== arg.id ? argReferenceName(inner) : null
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * 간접 호출(콜백) 후보명. `do_in_main_thread(base::BindOnce(b, addr))`처럼 함수를 직접 호출하지 않고
+ * 다른 호출의 **인자로 함수 참조를 넘기는** 경우, 그 함수 이름들을 호출 후보로 본다. (TODO_MORE)
+ * 실제 엣지 생성은 dependency-graph의 보수적 해석(프로젝트 내 동일명 유일)에서 걸러진다.
+ */
+function cppCallbackArgNames(call: Node): string[] {
+  const args = call.childForFieldName('arguments')
+  if (!args) return []
+  const out: string[] = []
+  for (const arg of args.namedChildren) {
+    const name = argReferenceName(arg)
+    if (name) out.push(name)
+  }
+  return out
+}
+
 /**
  * JNI 클래스 디스크립터 문자열("pkg/sub/Class")인지 판단한다.
  * 슬래시 포함 + 허용 문자(`\w/$`)만 + 마지막 세그먼트가 대문자로 시작(클래스명). (TODO_MORE)
@@ -245,11 +281,17 @@ function extractCFamilyFunctions(root: Node): FunctionDef[] {
   }
   // 호출은 가장 가까운 함수 정의에 귀속. (java/kotlin과 동일 방식)
   for (const call of root.descendantsOfType('call_expression')) {
-    const name = cppCalleeName(call)
-    if (!name) continue
     const owner = nearestAncestorOfType(call, 'function_definition')
     const fn = owner ? funcById.get(owner.id) : undefined
-    if (fn) fn.calls.push({ name, line: call.startPosition.row + 1 })
+    if (!fn) continue
+    const line = call.startPosition.row + 1
+    // 직접 호출 대상.
+    const name = cppCalleeName(call)
+    if (name) fn.calls.push({ name, line })
+    // 간접 호출(콜백): 인자로 넘긴 함수 참조도 호출 후보로 추가(BindOnce/PostTask 등). (TODO_MORE)
+    for (const cb of cppCallbackArgNames(call)) {
+      if (cb !== name) fn.calls.push({ name: cb, line })
+    }
   }
   return functions
 }

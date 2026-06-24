@@ -33,7 +33,8 @@ export interface InitialView {
 export function selectFocusView(
   full: CodeGraph,
   focusId: string,
-  maxNodes: number = DEFAULT_MAX_INITIAL_NODES
+  maxNodes: number = DEFAULT_MAX_INITIAL_NODES,
+  maxDepth: number = Infinity
 ): CodeGraph {
   const renderNodes = full.nodes.filter((node) => node.kind !== 'function')
   const renderable = new Set(renderNodes.map((n) => n.id))
@@ -54,10 +55,12 @@ export function selectFocusView(
       link(e.to, e.from)
     }
   }
-  // 중심에서 거리순(BFS)으로 maxNodes까지. 가까운 거리부터 채우며 상한을 넘지 않는다.
+  // 중심에서 거리순(BFS)으로 maxDepth 단계·maxNodes까지. 가까운 거리부터 채우며 상한을 넘지 않는다.
   const selected = new Set<string>([focusId])
   let frontier = [focusId]
-  while (frontier.length > 0 && selected.size < maxNodes) {
+  let depth = 0
+  while (frontier.length > 0 && selected.size < maxNodes && depth < maxDepth) {
+    depth += 1
     const next: string[] = []
     for (const id of frontier) {
       for (const nb of adjacency.get(id) ?? []) {

@@ -108,9 +108,23 @@ if (root) {
       const activeId = store.getActiveId()
       if (activeId) store.setBacktrace(activeId, functionId)
     }
+    // 역추적 종료 → '파일 그래프로'. 직전 검색 결과(포커스)를 관계도 뷰에 유지한다. (TODO_MORE)
+    // - 이미 포커스가 있으면 그 파일 뷰로 복귀.
+    // - 없으면 역추적 대상의 소속 파일을 포커스해 마지막 결과를 그대로 보여준다.
     const exitBacktrace = (): void => {
       const activeId = store.getActiveId()
-      if (activeId) store.clearBacktrace(activeId)
+      const active = store.getActive()
+      if (!activeId || !active) return
+      if (active.view.focus) {
+        store.clearBacktrace(activeId)
+        return
+      }
+      const btId = active.view.backtrace
+      const graph = active.analysis.graph
+      const node = btId && graph ? graph.nodes.find((n) => n.id === btId) : null
+      const fileId = node ? fileNodeId(node.path) : null
+      if (fileId && graph?.nodes.some((n) => n.id === fileId)) store.setFocus(activeId, fileId)
+      else store.clearBacktrace(activeId)
     }
     // 포커스: 파일을 중심으로 그래프/트리를 다시 그린다. (TODO_MORE)
     const focusFile = (nodeId: string): void => {
@@ -121,15 +135,23 @@ if (root) {
       const activeId = store.getActiveId()
       if (activeId) store.clearFocus(activeId)
     }
-    // 검색: 함수 결과는 호출처 역추적, 파일 결과는 그 파일 중심 포커스(다시 그리기). (M7_4, M10_2, TODO_MORE)
+    // 1차(전역) 검색: 함수 결과는 호출처 역추적, 파일 결과는 그 파일 중심 포커스(다시 그리기)
+    // + 코드 패널에 그 파일을 바로 표시. (M7_4, M10_2, TODO_MORE)
     const onSearchPick = (entry: SearchEntry): void => {
       if (entry.kind === 'function') startBacktrace(entry.id)
-      else focusFile(focusTargetId(entry))
+      else {
+        focusFile(focusTargetId(entry))
+        void openSource(entry.path, 1, false) // 파일 검색 → 코드 패널에 바로 표시
+      }
+    }
+    // 보기 내(중첩) 검색: 현재 관계도 뷰를 유지한 채 선택/포커스만 이동(다시 그리지 않음). (TODO_MORE)
+    const onViewSearchPick = (entry: SearchEntry): void => {
+      selectNode(focusTargetId(entry))
     }
     // 메인 검색(프로젝트 전역).
     const searchView = new SearchView(wsSearch, onSearchPick)
     // 별도 "보기 내 검색" 영역(우상단): 현재 그래프에 표시 중인 노드로만 한정(중첩 검색). (TODO_MORE)
-    const viewSearchView = new SearchView(wsSearchView, onSearchPick, {
+    const viewSearchView = new SearchView(wsSearchView, onViewSearchPick, {
       scopedToView: true,
       placeholder: '보기 내 검색…'
     })

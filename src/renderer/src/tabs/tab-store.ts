@@ -240,11 +240,14 @@ export class TabStore {
     this.emit()
   }
 
-  /** 함수 호출처 역추적을 시작/전환한다. 포커스 모드는 종료한다. (02 §6, 03 §5.3, M10_2) */
+  /**
+   * 함수 호출처 역추적을 시작/전환한다. 포커스(focus)는 보존해 역추적 종료 시 그 파일 뷰로 복귀한다.
+   * (역추적 패널의 '파일 그래프로'로 나가면 직전 검색 결과 포커스가 유지된다.) (02 §6, 03 §5.3, M10_2, TODO_MORE)
+   */
   setBacktrace(id: string, functionId: string): void {
     const tab = this.tabs.find((t) => t.id === id)
     if (!tab || tab.view.backtrace === functionId) return
-    tab.view = { ...tab.view, backtrace: functionId, focus: null }
+    tab.view = { ...tab.view, backtrace: functionId }
     this.emit()
   }
 

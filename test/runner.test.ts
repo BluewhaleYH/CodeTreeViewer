@@ -128,6 +128,27 @@ describe('runAnalysis — 스캔→파싱 오케스트레이션 (M3_3)', () => {
     expect(calls[0].id).toContain('->')
   })
 
+  it('C/C++ 간접 호출(콜백 인자: BindOnce)도 function-call 엣지로 잇는다 (TODO_MORE)', async () => {
+    root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
+    // a()는 b()를 직접 호출하지 않고, do_in_main_thread(base::BindOnce(b, bd_addr))로 넘긴다.
+    await write(
+      'native/cb.cpp',
+      [
+        'void b(int addr) {}',
+        'void do_in_main_thread(int task) {}',
+        'void a() {',
+        '  do_in_main_thread(base::BindOnce(b, bd_addr));',
+        '}'
+      ].join('\n')
+    )
+
+    const { graph } = await runAnalysis(root, parser)
+    const calls = graph.edges.filter((e) => e.type === 'function-call')
+    // a → b 링크가 (간접 전달이어도) 존재해야 한다.
+    const aToB = calls.some((e) => e.from.endsWith('#a') && e.to.endsWith('#b'))
+    expect(aToB).toBe(true)
+  })
+
   it('빈 프로젝트도 안전하게 처리한다', async () => {
     root = await mkdtemp(join(tmpdir(), 'ctv-run-'))
     const { summary } = await runAnalysis(root, parser)

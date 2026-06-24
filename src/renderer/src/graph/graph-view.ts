@@ -22,6 +22,12 @@ import {
 /** 역추적 진입 시 초기 표시 단계(호출처 체인 깊이). 이후 노드 클릭으로 더 확장. (TODO_MORE) */
 const BACKTRACE_INITIAL_DEPTH = 6
 
+/**
+ * 포커스(파일 검색 선택) 시 중심에서 보여줄 이웃 단계. 전체 그래프가 아니라 그 파일 주변만
+ * 좁게 그려 "그 파일을 줌해서" 보이게 한다. 이후 노드 클릭으로 더 확장. (TODO_MORE)
+ */
+const FOCUS_DEPTH = 2
+
 /** Ctrl+휠 줌 감도(높을수록 한 번에 더 크게 확대/축소). cytoscape 기본 1.0. (TODO_MORE) */
 const WHEEL_SENSITIVITY = 1.0
 
@@ -445,7 +451,7 @@ export class GraphView {
     this.neighborAdjacency = buildNeighborAdjacency(graph)
     this.domainColors = assignDomainColors(graph)
 
-    const view = selectFocusView(graph, focusId, this.maxInitialNodes)
+    const view = selectFocusView(graph, focusId, this.maxInitialNodes, FOCUS_DEPTH)
     if (view.nodes.length === 0) {
       // 중심이 렌더 노드가 아니면(예: 함수) 일반 뷰로 폴백.
       this.draw(graph, mode, selectedNodeId)
