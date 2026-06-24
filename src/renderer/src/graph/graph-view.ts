@@ -11,7 +11,7 @@ import { DEFAULT_MAX_INITIAL_NODES, selectInitialView } from './initial-view'
 import { buildNeighborAdjacency, expandableNodeIds } from './expand'
 import { assignDomainColors } from './domain-colors'
 import {
-  backtraceSubgraph,
+  backtraceTree,
   buildCallerAdjacency,
   callersUpToDepth,
   expandableCallers
@@ -273,7 +273,10 @@ export class GraphView {
 
     const cy = cytoscape({
       container: this.host,
-      elements: backtraceElements(backtraceSubgraph(this.displayed, graph), this.domainColors),
+      elements: backtraceElements(
+        backtraceTree(this.displayed, graph, functionId, this.callerAdjacency),
+        this.domainColors
+      ),
       style: GRAPH_STYLE,
       layout: backtraceLayout,
       wheelSensitivity: WHEEL_SENSITIVITY,
@@ -285,7 +288,8 @@ export class GraphView {
     // 호출처 노드 클릭 = 그 위 호출처 점진 확장.
     cy.on('tap', 'node', (event) => this.revealCallers(event.target.id()))
     this.markBacktraceExpandable()
-    cy.getElementById(functionId).addClass('selected') // 마지막 노드 강조
+    cy.getElementById(functionId).addClass('selected') // 마지막 노드 강조(유일한 리프)
+    this.fitToSelection(functionId) // 선택 노드가 잘 보이게. (TODO_MORE)
   }
 
   /** 노드의 직접 호출처(1-홉)를 드러낸다(점진 확장). (M10_2) */
@@ -297,7 +301,8 @@ export class GraphView {
     if (added.length === 0) return
 
     added.forEach((c) => this.displayed.add(c))
-    const sub = backtraceSubgraph(this.displayed, this.fullGraph)
+    const rootId = this.backtraceId ?? id
+    const sub = backtraceTree(this.displayed, this.fullGraph, rootId, this.callerAdjacency)
     const addedSet = new Set(added)
     const newNodes = sub.nodes.filter((n) => addedSet.has(n.id))
     const newEdges = sub.edges.filter(
@@ -406,6 +411,18 @@ export class GraphView {
     // 모드 전환 후 선택 유지. (03 §5.2)
     this.selectedId = selectedNodeId && this.displayed.has(selectedNodeId) ? selectedNodeId : null
     this.applySelectedStyle()
+
+    // 기본 줌: 선택 노드(없으면 최상위 루트 노드)가 잘 보이게 줌. (TODO_MORE)
+    const focus = this.pickFocus(view.graph)
+    if (focus) this.fitToSelection(focus)
+  }
+
+  /** 포커스 노드: 선택 노드(표시 중)면 그것, 없으면 최상위(incoming 없는) 렌더 노드 1개. (TODO_MORE) */
+  private pickFocus(graph: CodeGraph): string | null {
+    if (this.selectedId && this.displayed.has(this.selectedId)) return this.selectedId
+    const incoming = new Set(graph.edges.map((e) => e.to))
+    const root = graph.nodes.find((n) => n.kind !== 'function' && !incoming.has(n.id))
+    return root?.id ?? graph.nodes[0]?.id ?? null
   }
 
   private registerTapHandlers(): void {

@@ -35,6 +35,8 @@ export interface EditorViewCallbacks {
   onDirtyChange?: (dirty: boolean) => void
   /** 저장 요청(Ctrl+S 또는 저장 버튼). (M12_2) */
   onSave?: (content: string) => void
+  /** 에디터에서 식별자(함수명 등)를 선택했을 때 통지. (TODO_MORE) */
+  onSymbolSelect?: (name: string) => void
 }
 
 export class EditorView {
@@ -127,6 +129,11 @@ export class EditorView {
       })
       this.editor.onDidChangeModelContent(() => this.recomputeDirty())
       this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => this.requestSave())
+      // 식별자 선택 → 통지(함수명 선택 시 그래프 노드 선택용). (TODO_MORE)
+      this.editor.onDidChangeCursorSelection((e) => {
+        const text = this.editor?.getModel()?.getValueInRange(e.selection)?.trim()
+        if (text && /^[A-Za-z_$][\w$]*$/.test(text)) this.callbacks.onSymbolSelect?.(text)
+      })
     }
     return this.editor
   }

@@ -3,6 +3,7 @@ import {
   buildCallerAdjacency,
   directCallers,
   callersUpToDepth,
+  backtraceTree,
   expandableCallers,
   backtraceSubgraph
 } from '../src/renderer/src/graph/backtrace'
@@ -65,6 +66,22 @@ describe('backtrace — 호출처 역추적 (M10_2)', () => {
     }
     const adj = buildCallerAdjacency(cyc)
     expect([...callersUpToDepth('x', adj, 10)].sort()).toEqual(['x', 'y'])
+  })
+
+  it('backtraceTree는 선택 노드만 sink로 두고 교차 엣지를 제거한다 (TODO_MORE)', () => {
+    // a→c, b→c, c→d + 교차 a→b. d 선택 시 a→b(같은 depth)는 제거되어야 함.
+    const g: CodeGraph = {
+      nodes: [fn('a'), fn('b'), fn('c'), fn('d')],
+      edges: [callEdge('a', 'c'), callEdge('b', 'c'), callEdge('c', 'd'), callEdge('a', 'b')]
+    }
+    const adj = buildCallerAdjacency(g)
+    const displayed = callersUpToDepth('d', adj, 5)
+    const tree = backtraceTree(displayed, g, 'd', adj)
+    expect(tree.edges.map((e) => `${e.from}->${e.to}`).sort()).toEqual(['a->c', 'b->c', 'c->d'])
+    const hasOut = (id: string): boolean => tree.edges.some((e) => e.from === id)
+    expect(hasOut('d')).toBe(false) // d만 sink(리프)
+    expect(hasOut('a')).toBe(true)
+    expect(hasOut('b')).toBe(true)
   })
 
   it('expandableCallers는 아직 표시되지 않은 호출처를 가진 노드를 표시한다', () => {

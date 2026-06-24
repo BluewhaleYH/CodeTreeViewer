@@ -160,6 +160,22 @@ if (root) {
       onDirtyChange: (dirty) => {
         const id = store.getActiveId()
         if (id) store.setCodeDirty(id, dirty)
+      },
+      // 코드에서 함수명을 선택하면 그 함수 노드를 그래프에서 보여준다(역추적). (TODO_MORE)
+      onSymbolSelect: (name) => {
+        const active = store.getActive()
+        const graph = active?.analysis.graph
+        if (!graph) return
+        const cv = active?.codeView
+        // 현재 파일에 정의된 함수 우선, 없으면 프로젝트 전역에서 동일명이 유일할 때만(오탐 방지).
+        const inFile =
+          cv && graph.nodes.find((n) => n.kind === 'function' && n.path === cv.file && n.name === name)
+        if (inFile) {
+          startBacktrace(inFile.id)
+          return
+        }
+        const matches = graph.nodes.filter((n) => n.kind === 'function' && n.name === name)
+        if (matches.length === 1) startBacktrace(matches[0].id)
       }
     })
 
@@ -250,8 +266,13 @@ if (root) {
         }
       })
       const active = store.getActive()
-      graphView.sync(active)
-      graphView.setImpact(active?.impact?.highlight ?? []) // 영향 범위 강조. (M12_4)
+      // 그래프 렌더가 실패해도 앱 전체가 멈추지 않도록 방어(특정 그래프 구조의 예외 대비). (TODO_MORE #3)
+      try {
+        graphView.sync(active)
+        graphView.setImpact(active?.impact?.highlight ?? []) // 영향 범위 강조. (M12_4)
+      } catch (err) {
+        console.error('[graph] sync 실패:', err)
+      }
       // 로그 분석: 열린 로그가 있으면 좌측 로그 패널 표시. (04 §2, M11_1)
       if (active && active.log) {
         wsLog.hidden = false

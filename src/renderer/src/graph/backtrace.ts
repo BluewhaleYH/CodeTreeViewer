@@ -78,3 +78,52 @@ export function backtraceSubgraph(displayed: ReadonlySet<string>, graph: CodeGra
   )
   return { nodes, edges }
 }
+
+/** rootId로부터 호출처 거리(역방향 BFS)를 displayed 범위에서 계산한다. */
+export function backtraceDepths(
+  rootId: string,
+  callerAdjacency: Map<string, string[]>,
+  displayed: ReadonlySet<string>
+): Map<string, number> {
+  const depth = new Map<string, number>([[rootId, 0]])
+  let frontier = [rootId]
+  let d = 0
+  while (frontier.length > 0) {
+    d += 1
+    const next: string[] = []
+    for (const id of frontier) {
+      for (const caller of callerAdjacency.get(id) ?? []) {
+        if (displayed.has(caller) && !depth.has(caller)) {
+          depth.set(caller, d)
+          next.push(caller)
+        }
+      }
+    }
+    frontier = next
+  }
+  return depth
+}
+
+/**
+ * 역추적 트리: displayed 노드 + **선택 노드(root) 쪽으로 흐르는 엣지만** 남긴다. (TODO_MORE)
+ * function-call 엣지 X→Y(X가 Y 호출)는 Y가 root에 더 가까울 때(depth(Y) < depth(X))만 유지 →
+ * 같은 depth/먼 depth로 가는 교차 엣지를 제거해 **root만 유일한 sink(리프)**가 되게 한다.
+ */
+export function backtraceTree(
+  displayed: ReadonlySet<string>,
+  graph: CodeGraph,
+  rootId: string,
+  callerAdjacency: Map<string, string[]>
+): CodeGraph {
+  const depth = backtraceDepths(rootId, callerAdjacency, displayed)
+  const nodes = graph.nodes.filter((n) => displayed.has(n.id) && depth.has(n.id))
+  const keep = new Set(nodes.map((n) => n.id))
+  const edges = graph.edges.filter(
+    (e) =>
+      e.type === 'function-call' &&
+      keep.has(e.from) &&
+      keep.has(e.to) &&
+      (depth.get(e.to) as number) < (depth.get(e.from) as number)
+  )
+  return { nodes, edges }
+}
